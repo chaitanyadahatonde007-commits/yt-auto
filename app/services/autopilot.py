@@ -4,12 +4,8 @@ import asyncio
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-try:
-    from zoneinfo import ZoneInfo
-
-    IST: timezone = ZoneInfo("Asia/Kolkata")  # type: ignore[assignment]
-except Exception:
-    IST = timezone(timedelta(hours=5, minutes=30))
+# Fixed IST. Do not use ZoneInfo — Windows Python has no tzdata by default.
+IST = timezone(timedelta(hours=5, minutes=30))
 
 from app.config import load_settings
 from app.services.pipeline import run_auto
@@ -26,7 +22,6 @@ from app.store import (
     update_autopilot_run,
 )
 
-IST = ZoneInfo("Asia/Kolkata")
 SLOTS = (9, 13, 19)
 _LOCK = asyncio.Lock()
 

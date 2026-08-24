@@ -21,13 +21,18 @@ from app.store import init_db
 async def lifespan(_: FastAPI):
     import asyncio
 
-    from app.services.autopilot import scheduler_loop
+    task = None
+    try:
+        from app.services.autopilot import scheduler_loop
 
-    task = asyncio.create_task(scheduler_loop())
+        task = asyncio.create_task(scheduler_loop())
+    except Exception as exc:
+        print("Autopilot scheduler not started:", exc)
     try:
         yield
     finally:
-        task.cancel()
+        if task:
+            task.cancel()
 
 
 ensure_dirs()
