@@ -113,7 +113,7 @@ async def run_auto(project_id: str, job_id: str | None = None, publish: bool = F
         project = await step_script(project)
         emit(0.34, "voice", "Recording the studio voice")
         project = await step_voice(project)
-        emit(0.52, "visuals", "WaveSpeed is painting stills and shooting motion clips")
+        emit(0.52, "visuals", "WaveSpeed and Pexels are shooting motion; we keep the best clip")
         project = await step_visuals(project)
         emit(0.66, "thumbnail", "Picking the strongest thumbnail")
         project = await step_thumbnail(project)

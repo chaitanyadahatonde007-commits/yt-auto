@@ -51,7 +51,7 @@ python3 run.py
 | Research | Wikipedia summary + your notes |
 | Script | Local showrunner, or OpenAI / Anthropic / Gemini if a key is saved |
 | Voice | Edge neural TTS when the network allows, OpenAI TTS if keyed, otherwise a local studio voice |
-| Visuals | Motion-ready posters from cinematic plates + type |
+| Visuals | WaveSpeed stills + motion, Pexels stock video, keep the strongest clip |
 | Thumbnails | Three 1280×720 posters — pick one |
 | Render | Ken Burns picture, captions, voice, low score, H.264 |
 | Publish | Official YouTube Data API upload + thumbnail |
@@ -77,6 +77,8 @@ In **Settings**, paste one of:
   4. Paint a thumbnail photograph
 
   It is **not** used for voice, FFmpeg render, or YouTube upload. The key stays in local `data/settings.json` and is never committed.
+
+- Pexels API key from [pexels.com/api](https://www.pexels.com/api/). Paste it in **Settings**. Used for real stock video per scene (and backup stills). The key stays in local `data/settings.json` and is never committed.
 
 The writer stays honest: it will not invent statistics. Without a key it still produces a structured host-read from the briefing.
 

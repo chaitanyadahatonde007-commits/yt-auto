@@ -232,6 +232,8 @@ async def pick_best_clip(candidates: list[tuple[str, Path]]) -> tuple[str, Path]
         score = await motion_score(path)
         if kind == "i2v":
             score += 8
+        elif kind == "pexels":
+            score += 6
         elif kind == "t2v":
             score += 5
         if best is None or score > best[0]:
