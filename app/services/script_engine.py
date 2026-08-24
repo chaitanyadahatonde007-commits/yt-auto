@@ -157,9 +157,9 @@ def _local_script(project: dict[str, Any], research: dict[str, Any] | None) -> d
 
     titles = {
         "entertainment": [
-            f"The {nice} Detail You Rewind For",
+            f"{nice}: The Detail You Rewind For",
             f"Wait — {nice} Was Never About That",
-            f"You Missed This in {nice}",
+            f"You Missed This: {nice}",
         ],
         "explainer": [
             f"How {nice} Actually Works",
