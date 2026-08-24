@@ -13,27 +13,36 @@ No cloud account is required to write, voice, design, or render. Neural voices a
 
 ## Quick start
 
-**Windows (Command Prompt or PowerShell)** — do not run `./start.sh`:
+You need [Python 3.11+](https://www.python.org/downloads/) and [Node.js](https://nodejs.org/). On Windows, tick **Add python.exe to PATH** when installing Python. After installing either one, close the terminal and open a new one.
+
+Then open [http://localhost:8000](http://localhost:8000). Leave the terminal running.
+
+### VS Code
+
+1. **File → Open Folder** and choose this `yt-auto` folder
+2. Install the recommended **Python** extension if VS Code asks
+3. Open the terminal (**Ctrl+`**) and run:
 
 ```bat
+py -3 run.py
+```
+
+Or press **F5** / **Run → Start Debugging** and choose **Run ChannelForge**.
+
+### Command Prompt
+
+```bat
+cd C:\Users\hp\OneDrive\ドキュメント\GitHub\yt-auto
 start.bat
 ```
 
-**Mac / Linux / Git Bash:**
+You can also type `py -3 run.py` in that folder. Do **not** type `./start.sh` in CMD.
+
+### Mac / Linux / Git Bash
 
 ```bash
-chmod +x start.sh
-./start.sh
+python3 run.py
 ```
-
-Then open [http://localhost:8000](http://localhost:8000).
-
-You need:
-
-- [Python 3.11+](https://www.python.org/downloads/) — on Windows, tick **Add python.exe to PATH**
-- [Node.js LTS](https://nodejs.org/) — used for the offline voice engine
-
-FFmpeg is installed automatically via `imageio-ffmpeg`. After installing Python or Node, close the terminal and open a new one in this folder.
 
 ## How a cut is made
 
