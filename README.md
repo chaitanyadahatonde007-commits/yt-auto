@@ -13,14 +13,27 @@ No cloud account is required to write, voice, design, or render. Neural voices a
 
 ## Quick start
 
+**Windows (Command Prompt or PowerShell)** — do not run `./start.sh`:
+
+```bat
+start.bat
+```
+
+**Mac / Linux / Git Bash:**
+
 ```bash
 chmod +x start.sh
 ./start.sh
 ```
 
-Open [http://localhost:8000](http://localhost:8000).
+Then open [http://localhost:8000](http://localhost:8000).
 
-Requirements: Python 3.11+, Node.js (for the offline voice engine). FFmpeg is pulled in automatically via `imageio-ffmpeg`.
+You need:
+
+- [Python 3.11+](https://www.python.org/downloads/) — on Windows, tick **Add python.exe to PATH**
+- [Node.js LTS](https://nodejs.org/) — used for the offline voice engine
+
+FFmpeg is installed automatically via `imageio-ffmpeg`. After installing Python or Node, close the terminal and open a new one in this folder.
 
 ## How a cut is made
 
