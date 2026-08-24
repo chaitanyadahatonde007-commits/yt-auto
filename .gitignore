@@ -1,0 +1,16 @@
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.DS_Store
+.env
+data/
+bin/
+vendor/espeak-ng/
+*.log
+client_secret.json
+token.json
+.python-version

@@ -1,0 +1,171 @@
+from __future__ import annotations
+
+from typing import Any, Callable
+
+from app.paths import project_dir
+from app.services.composer import compose_video
+from app.services.research import gather_research
+from app.services.script_engine import normalize_script, write_script
+from app.services.thumbnail import render_thumbnails
+from app.services.tts import retimed_scenes, synthesize
+from app.services.visuals import render_visuals
+from app.services.youtube_pub import upload_video
+from app.store import get_project, save_project, update_job
+
+Progress = Callable[[float, str, str], None]
+
+
+def _progress(job_id: str | None) -> Progress:
+    def emit(pct: float, step: str, message: str) -> None:
+        if job_id:
+            update_job(job_id, status="running", progress=round(pct, 3), step=step, message=message)
+
+    return emit
+
+
+async def step_research(project: dict[str, Any]) -> dict[str, Any]:
+    research = await gather_research(project.get("topic") or "", project.get("notes") or "")
+    project["research"] = research
+    project["status"] = "researched"
+    return save_project(project)
+
+
+async def step_script(project: dict[str, Any]) -> dict[str, Any]:
+    script = await write_script(project, project.get("research"))
+    project["script"] = script
+    project["title"] = script.get("title") or project.get("title")
+    project["status"] = "scripted"
+    return save_project(project)
+
+
+async def step_voice(project: dict[str, Any]) -> dict[str, Any]:
+    script = project.get("script")
+    if not script:
+        raise RuntimeError("Write a script first")
+    voiceover = await synthesize(project, script["full_text"], project.get("voice"))
+    script["scenes"] = retimed_scenes(script, voiceover)
+    script["estimated_seconds"] = voiceover["duration"]
+    project["script"] = script
+    project["voiceover"] = voiceover
+    project["status"] = "voiced"
+    return save_project(project)
+
+
+async def step_visuals(project: dict[str, Any]) -> dict[str, Any]:
+    script = project.get("script")
+    if not script:
+        raise RuntimeError("Write a script first")
+    project["visuals"] = render_visuals(project, script["scenes"])
+    project["status"] = "designed"
+    return save_project(project)
+
+
+async def step_thumbnail(project: dict[str, Any]) -> dict[str, Any]:
+    project["thumbnail"] = render_thumbnails(project)
+    if project.get("status") in {None, "draft", "researched", "scripted", "voiced", "designed"}:
+        project["status"] = project.get("status") or "designed"
+    return save_project(project)
+
+
+async def step_render(project: dict[str, Any]) -> dict[str, Any]:
+    if not project.get("visuals"):
+        project = await step_visuals(project)
+    if not project.get("voiceover"):
+        project = await step_voice(project)
+    project["render"] = await compose_video(project)
+    project["status"] = "rendered"
+    return save_project(project)
+
+
+async def step_publish(project: dict[str, Any], privacy: str | None = None) -> dict[str, Any]:
+    if not project.get("render"):
+        raise RuntimeError("Render the video first")
+    result = upload_video(project, privacy=privacy)
+    project["youtube"] = result
+    project["status"] = "published"
+    return save_project(project)
+
+
+async def run_auto(project_id: str, job_id: str | None = None, publish: bool = False) -> dict[str, Any]:
+    emit = _progress(job_id)
+    project = get_project(project_id)
+    if not project:
+        raise RuntimeError("Project not found")
+    try:
+        emit(0.04, "research", "Pulling a briefing on the topic")
+        project = await step_research(project)
+        emit(0.16, "script", "Writing narration and scene cards")
+        project = await step_script(project)
+        emit(0.34, "voice", "Recording the studio voice")
+        project = await step_voice(project)
+        emit(0.52, "visuals", "Designing motion frames")
+        project = await step_visuals(project)
+        emit(0.66, "thumbnail", "Cutting three thumbnail posters")
+        project = await step_thumbnail(project)
+        emit(0.74, "render", "Assembling picture, captions, and mix")
+        project = await step_render(project)
+        if publish:
+            emit(0.92, "publish", "Uploading to YouTube")
+            project = await step_publish(project)
+        emit(1.0, "done", "Cut is ready")
+        if job_id:
+            update_job(job_id, status="done", progress=1.0, step="done", message="Cut is ready")
+        return project
+    except Exception as exc:
+        if job_id:
+            update_job(job_id, status="error", error=str(exc), message=str(exc))
+        raise
+
+
+async def run_step(project_id: str, step: str, job_id: str | None = None, **kwargs: Any) -> dict[str, Any]:
+    emit = _progress(job_id)
+    project = get_project(project_id)
+    if not project:
+        raise RuntimeError("Project not found")
+    try:
+        emit(0.05, step, f"Starting {step}")
+        if step == "research":
+            project = await step_research(project)
+        elif step == "script":
+            project = await step_script(project)
+        elif step == "voice":
+            project = await step_voice(project)
+        elif step == "visuals":
+            project = await step_visuals(project)
+        elif step == "thumbnail":
+            project = await step_thumbnail(project)
+        elif step == "render":
+            project = await step_render(project)
+        elif step == "publish":
+            project = await step_publish(project, privacy=kwargs.get("privacy"))
+        else:
+            raise RuntimeError(f"Unknown step {step}")
+        emit(1.0, step, f"{step} complete")
+        if job_id:
+            update_job(job_id, status="done", progress=1.0, step=step, message=f"{step} complete")
+        return project
+    except Exception as exc:
+        if job_id:
+            update_job(job_id, status="error", error=str(exc), message=str(exc))
+        raise
+
+
+def apply_script_edit(project: dict[str, Any], payload: dict[str, Any]) -> dict[str, Any]:
+    current = project.get("script") or {"scenes": []}
+    if "full_text" in payload and payload["full_text"] and not payload.get("scenes"):
+        from app.services.script_engine import scenes_from_text
+
+        current["scenes"] = scenes_from_text(payload["full_text"])
+        current["full_text"] = payload["full_text"]
+        current["engine"] = "manual"
+    else:
+        current.update({k: v for k, v in payload.items() if v is not None})
+    project["script"] = normalize_script(current, project)
+    if payload.get("title"):
+        project["title"] = payload["title"]
+    project["status"] = "scripted"
+    # voice/visuals out of date
+    project["voiceover"] = None
+    project["visuals"] = None
+    project["render"] = None
+    return save_project(project)
