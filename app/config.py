@@ -22,6 +22,7 @@ DEFAULTS: dict[str, Any] = {
     "gemini_model": "gemini-2.5-flash",
     "groq_api_key": "",
     "groq_model": "llama-3.3-70b-versatile",
+    "wavespeed_api_key": "",
     "google_client_id": "",
     "google_client_secret": "",
     "public_base_url": "",
@@ -52,6 +53,7 @@ def load_settings() -> dict[str, Any]:
         "anthropic_api_key": "ANTHROPIC_API_KEY",
         "gemini_api_key": "GEMINI_API_KEY",
         "groq_api_key": "GROQ_API_KEY",
+        "wavespeed_api_key": "WAVESPEED_API_KEY",
     }
     for field, env_name in env_map.items():
         if not merged.get(field) and os.environ.get(env_name):

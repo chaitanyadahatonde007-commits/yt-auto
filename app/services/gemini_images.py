@@ -37,13 +37,20 @@ def _extract_image(body: dict[str, Any]) -> bytes | None:
 
 
 async def generate_still(prompt: str, dest: Path, aspect: str = "16:9") -> bool:
-    """Paint one still with the Gemini image model. Returns True if dest was written."""
+    """Paint one still. WaveSpeed first, then Gemini."""
     global LAST_IMAGE_ERROR
     LAST_IMAGE_ERROR = None
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    from app.services.wavespeed import generate_still as wavespeed_still, last_error as wavespeed_error
+
+    if await wavespeed_still(prompt, dest, aspect=aspect):
+        return True
+    ws_err = wavespeed_error()
+
     settings = load_settings()
     key = (settings.get("gemini_api_key") or "").strip()
     if not key:
-        LAST_IMAGE_ERROR = "No Gemini API key"
+        LAST_IMAGE_ERROR = ws_err or "No image API key"
         return False
 
     clean = (
