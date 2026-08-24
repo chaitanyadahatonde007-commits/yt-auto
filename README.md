@@ -69,7 +69,7 @@ In **Settings**, paste one of:
 
 - OpenAI API key (`gpt-4o-mini` by default)
 - Anthropic API key
-- Gemini API key
+- Gemini API key from [Google AI Studio](https://aistudio.google.com/apikey) (`AIza…` or the newer `AQ.…` keys both work). Paste it in **Settings**, then Save. The key stays in local `data/settings.json` and is never committed.
 
 The writer stays honest: it will not invent statistics. Without a key it still produces a structured host-read from the briefing.
 

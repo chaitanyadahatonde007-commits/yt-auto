@@ -509,6 +509,12 @@ def normalize_script(data: dict[str, Any], project: dict[str, Any]) -> dict[str,
 async def write_script(project: dict[str, Any], research: dict[str, Any] | None) -> dict[str, Any]:
     llm = await generate_script_llm(_brief(project, research))
     if llm:
-        llm["engine"] = "llm"
+        llm["engine"] = llm.get("engine") or "llm"
         return normalize_script(llm, project)
-    return _local_script(project, research)
+    local = _local_script(project, research)
+    from app.services.llm import last_error
+
+    err = last_error()
+    if err:
+        local["llm_error"] = err
+    return local

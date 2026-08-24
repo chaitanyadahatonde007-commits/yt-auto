@@ -358,6 +358,7 @@ function stepHtml(p, step) {
       <label class="field"><span>Title</span><input name="title" value="${esc(s.title || p.title || "")}" /></label>
       <label class="field"><span>Narration</span><textarea class="script-box" name="full_text">${esc(s.full_text || "")}</textarea></label>
       <label class="field"><span>YouTube description</span><textarea name="description">${esc(s.description || "")}</textarea></label>
+      <p class="notice">${s.engine ? `Writer: ${esc(s.engine)}${s.model ? " · " + esc(s.model) : ""}` : "No script yet."}${s.llm_error ? " · Gemini fallback: " + esc(s.llm_error) : ""}</p>
       <div class="row">
         <button class="btn" id="save-script" type="button">Save edits</button>
         <button class="btn primary" id="run-step" type="button">Rewrite script</button>
@@ -464,7 +465,7 @@ async function renderSettings() {
       <h2 class="section">Better writing (optional)</h2>
       <label class="field"><span>OpenAI API key</span><input name="openai_api_key" type="password" value="${esc(val("openai_api_key"))}" placeholder="sk-…" /></label>
       <label class="field"><span>Anthropic API key</span><input name="anthropic_api_key" type="password" value="${esc(val("anthropic_api_key"))}" /></label>
-      <label class="field"><span>Gemini API key</span><input name="gemini_api_key" type="password" value="${esc(val("gemini_api_key"))}" /></label>
+      <label class="field"><span>Gemini API key (AI Studio, AIza or AQ. keys both work)</span><input name="gemini_api_key" type="password" value="${esc(val("gemini_api_key"))}" placeholder="AQ.… or AIza…" /></label>
       <h2 class="section">YouTube OAuth</h2>
       <label class="field"><span>Public base URL</span><input name="public_base_url" value="${esc(val("public_base_url"))}" placeholder="https://your-host" /></label>
       <label class="field"><span>Google client ID</span><input name="google_client_id" value="${esc(val("google_client_id"))}" /></label>

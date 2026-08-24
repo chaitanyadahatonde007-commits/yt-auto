@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from copy import deepcopy
 from typing import Any
 
@@ -18,7 +19,7 @@ DEFAULTS: dict[str, Any] = {
     "anthropic_api_key": "",
     "anthropic_model": "claude-3-5-haiku-latest",
     "gemini_api_key": "",
-    "gemini_model": "gemini-2.0-flash",
+    "gemini_model": "gemini-2.5-flash",
     "google_client_id": "",
     "google_client_secret": "",
     "public_base_url": "",
@@ -37,6 +38,14 @@ def load_settings() -> dict[str, Any]:
         return deepcopy(DEFAULTS)
     merged = deepcopy(DEFAULTS)
     merged.update({k: v for k, v in data.items() if k in DEFAULTS})
+    env_map = {
+        "openai_api_key": "OPENAI_API_KEY",
+        "anthropic_api_key": "ANTHROPIC_API_KEY",
+        "gemini_api_key": "GEMINI_API_KEY",
+    }
+    for field, env_name in env_map.items():
+        if not merged.get(field) and os.environ.get(env_name):
+            merged[field] = os.environ[env_name].strip()
     return merged
 
 
