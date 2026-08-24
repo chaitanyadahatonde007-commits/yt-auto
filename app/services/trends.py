@@ -36,6 +36,7 @@ async def _youtube_popular(region: str) -> list[dict[str, Any]]:
             part="snippet,statistics",
             chart="mostPopular",
             regionCode=region or "IN",
+            videoCategoryId="24",
             maxResults=15,
         ).execute()
         out = []
@@ -71,7 +72,7 @@ async def _reddit() -> list[dict[str, Any]]:
     headers = {"User-Agent": UA}
     try:
         async with httpx.AsyncClient(timeout=12.0, headers=headers, follow_redirects=True) as client:
-            for sub in ("popular", "todayilearned", "explainlikeimfive", "science"):
+            for sub in ("movies", "television", "bollywood", "cricket", "todayilearned", "unexpected"):
                 res = await client.get(f"https://www.reddit.com/r/{sub}/hot.json", params={"limit": 8})
                 if res.status_code >= 400:
                     continue
@@ -118,9 +119,9 @@ async def _refine_topic(raw: dict[str, Any]) -> dict[str, Any]:
             "notes": f"Trending via {raw.get('source')}: {raw.get('title')}",
         }
     prompt = (
-        "Turn this trending headline into one original YouTube explainer topic. "
-        "Do not copy the headline as news. Make it a curiosity question or mechanism. "
-        "No celebrity gossip, no medical advice, no politics as a fight. "
+        "Turn this trending item into one original entertainment YouTube topic that keeps people watching. "
+        "Do not copy the headline as news. Make it a story, a missed detail, or a rewind moment. "
+        "Movies, cricket, songs, series are good. No celebrity harassment, no medical advice, no political fight. "
         "Return JSON only: {\"topic\":\"...\",\"angle\":\"...\"}\n\n"
         f"Headline: {raw['title']}\nSource: {raw.get('source')}"
     )
@@ -131,7 +132,7 @@ async def _refine_topic(raw: dict[str, Any]) -> dict[str, Any]:
                 headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
                 json={
                     "model": settings.get("groq_model") or "llama-3.3-70b-versatile",
-                    "temperature": 0.5,
+                    "temperature": 0.8,
                     "response_format": {"type": "json_object"},
                     "messages": [{"role": "user", "content": prompt}],
                 },
@@ -172,6 +173,11 @@ async def discover_trends(region: str | None = None) -> list[dict[str, Any]]:
             continue
         seen.add(key)
         unique.append(item)
+    if len(unique) < 6:
+        for item in _entertainment_vault():
+            key = item["title"].lower()
+            if key not in seen and key not in used:
+                unique.append(item)
     return unique[:24]
 
 
@@ -199,11 +205,44 @@ async def _gather(region: str) -> list[dict[str, Any]]:
         wiki = await _wikipedia_today()
     except Exception:
         pass
-    return news + yt + trends + wiki + reddit
+    vault = _entertainment_vault()
+    scored = _prefer_entertainment(news + yt + reddit + trends + wiki)
+    return scored + vault
+
+
+_FUN = {
+    "movie", "film", "cinema", "cricket", "ipl", "song", "music", "series", "trailer",
+    "netflix", "bollywood", "hollywood", "anime", "match", "goal", "concert", "viral",
+    "scene", "ending", "villain", "hero", "ott", "season", "actor", "director",
+    "album", "dance", "meme", "plot", "twist", "short", "reel", "episode", "final",
+}
+
+
+def _entertainment_vault() -> list[dict[str, Any]]:
+    return [
+        {"title": "The movie ending everyone still argues about", "source": "vault", "why": "Evergreen hook"},
+        {"title": "The cricket rule commentators skip", "source": "vault", "why": "India sports hook"},
+        {"title": "Why that one Bollywood song still lives in your head", "source": "vault", "why": "Music hook"},
+        {"title": "The villain who was actually right", "source": "vault", "why": "Story hook"},
+        {"title": "The scene they cut that changes the whole film", "source": "vault", "why": "Rewind hook"},
+        {"title": "Why sequels feel worse even when they cost more", "source": "vault", "why": "Industry hook"},
+        {"title": "The IPL chase moment that rewired the crowd", "source": "vault", "why": "Sports hook"},
+        {"title": "Why you finish a series you already hate", "source": "vault", "why": "Psychology hook"},
+        {"title": "The background extra who stole the scene", "source": "vault", "why": "Detail hook"},
+        {"title": "The trailer lie you always fall for", "source": "vault", "why": "Craft hook"},
+    ]
+
+
+def _prefer_entertainment(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    def score(item: dict[str, Any]) -> int:
+        blob = f"{item.get('title','')} {item.get('why','')} {item.get('source','')}".lower()
+        return sum(1 for w in _FUN if w in blob)
+
+    return sorted(items, key=score, reverse=True)
 
 
 async def pick_topic(region: str | None = None) -> dict[str, Any]:
     candidates = await discover_trends(region)
     if not candidates:
-        raise RuntimeError("Could not read any trending feed. Check the network and try again.")
+        candidates = _entertainment_vault()
     return await _refine_topic(candidates[0])

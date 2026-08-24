@@ -2,9 +2,10 @@ const $ = (sel, root = document) => root.querySelector(sel);
 const app = $("#app");
 
 const STYLES = [
-  ["explainer", "Explainer"],
-  ["listicle", "Listicle"],
+  ["entertainment", "Entertainment"],
   ["story", "Story"],
+  ["listicle", "Listicle"],
+  ["explainer", "Explainer"],
   ["documentary", "Documentary"],
   ["motivation", "Motivation"],
   ["news", "Briefing"],
@@ -112,13 +113,13 @@ async function renderHome() {
     <section class="hero">
       <div class="kicker">YouTube automation floor</div>
       <h1>Write it. Voice it.<br/>Cut it. Ship it.</h1>
-      <p class="lede">ChannelForge is a local studio for faceless videos — research, script, voice, motion graphics, thumbnails, render, and YouTube upload in one room.</p>
+      <p class="lede">Entertainment cuts built to hold a stranger. Hook in the first line, twist in the middle, payoff late. Then voice, picture, and upload.</p>
       <form class="command" id="quick">
         <input name="topic" placeholder="What should we film?  e.g. Why time slows near a black hole" required />
         <button class="btn primary" type="submit">Auto-cut</button>
       </form>
       <div class="chips" id="ideas">
-        ${["How black holes warp time", "The sunk cost trap", "Why cities feel louder at night", "A brief history of money", "What attention actually is"].map((t) => `<button class="chip" data-idea="${esc(t)}">${esc(t)}</button>`).join("")}
+        ${["The movie ending everyone still argues about", "The cricket rule commentators skip", "Why that one song still lives in your head", "The villain who was actually right", "The scene they cut that changes the film"].map((t) => `<button class="chip" data-idea="${esc(t)}">${esc(t)}</button>`).join("")}
       </div>
     </section>
     <h2 class="section">On the bench</h2>
@@ -448,7 +449,7 @@ async function renderAutopilot() {
     <div class="toprow">
       <div>
         <h1>Autopilot</h1>
-        <p class="lede">Reads what is famous right now, writes a video with no prompt from you, then schedules it. Leave the Command Prompt running.</p>
+        <p class="lede">Picks a famous entertainment topic, writes a hook-first cut, then schedules it. Leave the Command Prompt running.</p>
       </div>
       <div class="row">
         <button class="btn ${on ? "" : "primary"}" id="toggle" type="button">${on ? "Pause" : "Start autopilot"}</button>

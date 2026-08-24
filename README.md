@@ -48,8 +48,8 @@ python3 run.py
 
 | Stage | What happens |
 | --- | --- |
-| Research | Wikipedia summary + your notes |
-| Script | Local showrunner, or OpenAI / Anthropic / Gemini if a key is saved |
+| Research | Wikipedia + news + notes |
+| Script | Entertainment showrunner — hook, twist, payoff |
 | Voice | Edge neural TTS when the network allows, OpenAI TTS if keyed, otherwise a local studio voice |
 | Visuals | WaveSpeed stills + motion, Pexels stock video, keep the strongest clip |
 | Thumbnails | Three 1280×720 posters — pick one |

@@ -11,9 +11,9 @@ DEFAULTS: dict[str, Any] = {
     "channel_name": "",
     "default_privacy": "private",
     "default_format": "long",
-    "default_style": "explainer",
+    "default_style": "entertainment",
     "default_voice": "local:en-us",
-    "default_mood": "ember",
+    "default_mood": "magenta",
     "openai_api_key": "",
     "openai_model": "gpt-4o-mini",
     "anthropic_api_key": "",
@@ -29,15 +29,16 @@ DEFAULTS: dict[str, Any] = {
     "google_client_id": "",
     "google_client_secret": "",
     "public_base_url": "",
-    "youtube_category_id": "27",
+    "youtube_category_id": "24",
     "made_for_kids": False,
     "autopilot_enabled": False,
     "autopilot_interval_hours": 6,
     "autopilot_daily_cap": 3,
     "autopilot_format": "short",
-    "autopilot_style": "explainer",
+    "autopilot_style": "entertainment",
     "autopilot_region": "IN",
     "autopilot_publish": "schedule",
+    "entertainment_mode": True,
 }
 
 
@@ -51,6 +52,16 @@ def load_settings() -> dict[str, Any]:
         return deepcopy(DEFAULTS)
     merged = deepcopy(DEFAULTS)
     merged.update({k: v for k, v in data.items() if k in DEFAULTS})
+    if not data.get("entertainment_mode"):
+        merged["default_style"] = "entertainment"
+        merged["autopilot_style"] = "entertainment"
+        merged["default_mood"] = merged.get("default_mood") or "magenta"
+        merged["youtube_category_id"] = "24"
+        merged["entertainment_mode"] = True
+        try:
+            SETTINGS_PATH.write_text(json.dumps(merged, indent=2), encoding="utf-8")
+        except Exception:
+            pass
     env_map = {
         "openai_api_key": "OPENAI_API_KEY",
         "anthropic_api_key": "ANTHROPIC_API_KEY",

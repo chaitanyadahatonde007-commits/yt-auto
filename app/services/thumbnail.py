@@ -65,9 +65,9 @@ def render_thumbnail_variant(
     small = _load_font("Inter-Bold.ttf", 22)
 
     kicker = {
-        0: "THE REAL MECHANISM",
-        1: "WATCH BEFORE YOU ARGUE",
-        2: "NOT THE USUAL TAKE",
+        0: "WAIT FOR THIS",
+        1: "YOU MISSED THIS",
+        2: "THE PART THEY CUT",
     }[variant % 3]
 
     if layout == "left-stack":
@@ -122,8 +122,8 @@ async def render_thumbnails(project: dict[str, Any]) -> dict[str, Any]:
     photo = None
     source = "plate"
     prompt = (
-        f"YouTube thumbnail photograph for a video titled '{title}' about {topic}. "
-        "Dramatic lighting, one clear subject, high contrast, no text, no letters."
+        f"YouTube entertainment thumbnail photograph for '{title}' about {topic}. "
+        "One face or one object, cinematic lighting, high contrast, no text, no letters."
     )
     if await generate_still(prompt, raw, aspect="16:9"):
         photo = Image.open(raw)

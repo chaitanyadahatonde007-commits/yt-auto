@@ -28,7 +28,7 @@ async def top_headlines(region: str = "IN", page_size: int = 15) -> list[dict[st
     out: list[dict[str, Any]] = []
     try:
         async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
-            for extra in ({}, {"category": "science"}, {"category": "technology"}):
+            for extra in ({"category": "entertainment"}, {"category": "sports"}, {}):
                 params = {"apiKey": _key(), "country": country, "pageSize": page_size, **extra}
                 res = await client.get("https://newsapi.org/v2/top-headlines", params=params)
                 if res.status_code >= 400:

@@ -10,27 +10,41 @@ from app.config import load_settings
 
 LAST_ERROR: str | None = None
 
-SYSTEM = """You are ChannelForge, a YouTube showrunner and shot-lister.
-Write original spoken-word narration. Short sentences. Concrete images. No hashtags in the script.
-Never invent citations or fake statistics. If a fact is uncertain, phrase it as a question or a widely held view.
-Every scene must have a unique visual that matches THAT scene's spoken line — not a generic topic collage.
+SYSTEM = """You are ChannelForge, an entertainment YouTube showrunner. Your job is to keep a stranger watching.
+
+Write spoken-word narration people cannot skip. Sound like a sharp friend telling a story at 1am — not a textbook, not a news anchor, not a corporate explainer.
+
+Retention rules:
+- First 8 words must stop the scroll. No hello, no welcome, no "in this video".
+- Open a loop in sentence one. Do not pay it off until the last third.
+- Rehook every scene: a twist, a "wait", a "that's not even the part", a concrete image.
+- Short sentences. Punch, then picture. Max ~20 words per sentence.
+- One idea per scene. End scenes on unfinished business so the next scene is required.
+- For Shorts: 4–6 scenes, cold open, one twist, one payoff, one follow CTA.
+- For long: cold open story, three turns, then the real reason.
+- Title: curiosity + specificity, under 60 characters. No all-caps spam. No fake "GONE WRONG".
+- on_screen: 2–4 punchy words, not a sentence.
+- visual_prompt: one filmable cinematic moment that matches THAT line — faces, weather, stadium lights, film sets, night streets. No text, no letters, no logos, no watermark.
+
+Stay honest. Never invent statistics, quotes, or "leaked" events. If something is a theory, say it is a theory. No celebrity harassment, no medical advice, no political fight.
+
 Return ONLY valid JSON with this shape:
 {
-  "title": "clickable title under 70 chars",
+  "title": "clickable title under 60 chars",
   "hook": "first 1-2 spoken sentences",
-  "description": "YouTube description with 3 short paragraphs and a resources line",
+  "description": "YouTube description with a hook line, 2 short paragraphs, and a comment prompt",
   "tags": ["tag1", "tag2"],
   "scenes": [
      {
        "kind": "title|narration|stat|outro",
        "text": "spoken words for this shot only",
-       "on_screen": "3-6 word graphic",
+       "on_screen": "2-4 word graphic",
        "visual_prompt": "photoreal cinematic still that illustrates this line, no text, no letters, no logos, no watermark, specific objects and setting"
      }
   ]
 }
 The scenes together must be the full narration, in order, with no missing words.
-visual_prompt must change every scene and describe a filmable picture, not abstract words.
+visual_prompt must change every scene.
 """
 
 GEMINI_MODELS = (
@@ -120,7 +134,7 @@ async def _groq(brief: str, settings: dict[str, Any]) -> dict[str, Any] | None:
                     },
                     json={
                         "model": model,
-                        "temperature": 0.7,
+                        "temperature": 0.85,
                         "response_format": {"type": "json_object"},
                         "messages": [
                             {"role": "system", "content": SYSTEM},
@@ -157,7 +171,7 @@ async def _openai(brief: str, settings: dict[str, Any]) -> dict[str, Any] | None
                 },
                 json={
                     "model": settings.get("openai_model") or "gpt-4o-mini",
-                    "temperature": 0.7,
+                    "temperature": 0.85,
                     "response_format": {"type": "json_object"},
                     "messages": [
                         {"role": "system", "content": SYSTEM},
@@ -215,7 +229,7 @@ async def _gemini(brief: str, settings: dict[str, Any]) -> dict[str, Any] | None
     payload = {
         "systemInstruction": {"parts": [{"text": SYSTEM}]},
         "contents": [{"parts": [{"text": brief}]}],
-        "generationConfig": {"temperature": 0.7, "responseMimeType": "application/json"},
+        "generationConfig": {"temperature": 0.85, "responseMimeType": "application/json"},
     }
     try:
         async with httpx.AsyncClient(timeout=60.0) as client:

@@ -9,6 +9,7 @@ from app.services.llm import generate_script_llm
 WORDS_PER_MINUTE = 148
 
 STYLES = {
+    "entertainment": "Hook-first entertainment. Story, twist, payoff. People stay because they need the next line.",
     "explainer": "Clear documentary explainer. Teach one idea so a smart teenager gets it.",
     "listicle": "Numbered revelations. Each point earns the next.",
     "story": "Narrative tension. A person, a problem, a turn, a meaning.",
@@ -122,7 +123,7 @@ Topic: {project.get('topic')}
 Working title: {project.get('title')}
 Format: {fmt}
 Target length: {project.get('target_seconds')} seconds
-Style: {project.get('style')} — {STYLES.get(project.get('style') or 'explainer', '')}
+Style: {project.get('style')} — {STYLES.get(project.get('style') or 'entertainment', '')}
 Creator notes: {project.get('notes') or 'None'}
 Research source: {(research or {}).get('source')}
 Research summary: {(research or {}).get('summary') or 'n/a'}
@@ -130,29 +131,36 @@ Known facts:
 {fact_block}
 
 Write a complete narration that fits the target length at about 148 words per minute.
-Open with a hook in the first two sentences. Close with a clean subscribe / comment CTA.
+This channel is entertainment. Hook in the first eight words. Open a loop. Pay it off late.
+No welcome, no "hey guys", no lecture voice. Make someone stay. Close with a comment dare, not a polite thanks.
 """.strip()
 
 
 def _local_script(project: dict[str, Any], research: dict[str, Any] | None) -> dict[str, Any]:
     topic = (project.get("topic") or "this idea").strip()
     nice = _title_case_topic(topic)
-    style = project.get("style") or "explainer"
+    style = project.get("style") or "entertainment"
     fmt = project.get("format") or "long"
     target = int(project.get("target_seconds") or (45 if fmt == "short" else 180))
     facts = _fact_lines(research)
     seed = f"{topic}|{style}|{fmt}"
 
     hooks = [
-        f"Most people think they understand {topic}. They don't.",
-        f"If {topic} disappeared tomorrow, the world would not look the way you expect.",
-        f"There is a version of {topic} that never makes the thumbnail. This is that version.",
-        f"You have heard the simple story about {topic}. The real one is sharper.",
-        f"Stop scrolling. {nice} is not what the comment section says it is.",
+        f"Pause. The part about {topic} you remember is the decoy.",
+        f"Nobody talks about the last four seconds of {topic}. That is the whole movie.",
+        f"You have seen {topic} a hundred times. You have not seen this cut.",
+        f"Stop. If this is about {topic}, the twist is not where you think.",
+        f"There is a reason {topic} still lives in your head. It is not the plot.",
+        f"This is the {topic} detail that makes people rewind.",
     ]
     hook = _hash_pick(seed + "hook", hooks)
 
     titles = {
+        "entertainment": [
+            f"The {nice} Detail You Rewind For",
+            f"Wait — {nice} Was Never About That",
+            f"You Missed This in {nice}",
+        ],
         "explainer": [
             f"How {nice} Actually Works",
             f"{nice}: The Part Nobody Explains",
@@ -184,7 +192,7 @@ def _local_script(project: dict[str, Any], research: dict[str, Any] | None) -> d
             f"Catch Up on {nice} in One Sitting",
         ],
     }
-    title = _hash_pick(seed + "title", titles.get(style, titles["explainer"]))
+    title = _hash_pick(seed + "title", titles.get(style, titles["entertainment"]))
 
     if fmt == "short":
         scenes = _short_script(nice, topic, hook, facts, target, style)
@@ -196,6 +204,8 @@ def _local_script(project: dict[str, Any], research: dict[str, Any] | None) -> d
         scenes = _motivation_script(nice, topic, hook, facts, target)
     elif style == "news":
         scenes = _news_script(nice, topic, hook, facts, target)
+    elif style == "entertainment":
+        scenes = _entertainment_script(nice, topic, hook, facts, target)
     else:
         scenes = _explainer_script(nice, topic, hook, facts, target, documentary=style == "documentary")
 
@@ -224,6 +234,32 @@ def _count_for(target: int) -> int:
     if target < 240:
         return 7
     return 10
+
+
+def _entertainment_script(nice: str, topic: str, hook: str, facts: list[str], target: int) -> list[dict[str, Any]]:
+    scenes: list[dict[str, Any]] = [
+        {
+            "kind": "title",
+            "text": f"{hook} Stay for the last turn. That is the part people argue about.",
+            "on_screen": "WAIT FOR IT",
+        }
+    ]
+    frames = [
+        f"The version of {topic} you were sold is the trailer. Clean. Loud. Easy to quote.",
+        f"The real cut is messier. Someone made a choice in a room you never see, and that choice is still running your brain.",
+        f"Here is the setup. {nice} works because it hides the important beat inside a joke, a song, a chase, a look that lasts half a second.",
+        f"You think you are watching plot. You are watching timing. The second the timing slips, the spell breaks — and you feel it in your chest before you can name it.",
+        f"That is not even the part. The part is what they leave out. Silence. A cutaway. A face that does not celebrate.",
+        f"Once you notice that gap, you cannot unsee {topic}. Every rewind is you hunting the same missing frame.",
+        f"So the hook is not a secret leak. It is craft. {nice} stays famous because it withholds the thing you came for until you have already stayed.",
+    ]
+    if facts:
+        frames.insert(2, f"Hold this against what we can actually say. {facts[0]}")
+        if len(facts) > 1:
+            frames.insert(5, f"And this detail keeps showing up: {facts[1]}")
+    scenes.extend(_pack_scenes(frames))
+    scenes.append(_outro(topic, nice))
+    return scenes
 
 
 def _explainer_script(
@@ -356,19 +392,22 @@ def _short_script(
 ) -> list[dict[str, Any]]:
     lines = [
         hook,
-        f"Here is the cut on {topic} that usually gets skipped.",
+        f"The version of {topic} you remember is the trailer. Not the scene.",
     ]
     if facts:
-        lines.extend(facts[:3])
+        lines.append(facts[0])
+        if len(facts) > 1:
+            lines.append(f"Wait. {facts[1]}")
+        else:
+            lines.append(f"The twist is timing. {nice} hides the real beat in a look you almost miss.")
     else:
         lines.extend(
             [
-                f"{nice} looks simple from far away. Up close it is a chain of rules, not a single object.",
-                f"The useful question is not what {topic} is called. It is what has to be true for it to happen at all.",
-                f"If you can explain {topic} without a metaphor, you actually understand it. Most people are still on the metaphor.",
+                f"{nice} works because it withholds the thing you came for.",
+                f"Once you see that gap, you rewind. That is the hook.",
             ]
         )
-    lines.append(f"Follow for the longer cut on {topic}. Comment the part that surprised you.")
+    lines.append(f"Follow for the longer cut. Comment the second you noticed it in {topic}.")
     scenes = []
     for i, line in enumerate(lines):
         kind = "title" if i == 0 else "outro" if i == len(lines) - 1 else "stat" if i == 1 else "narration"
@@ -386,9 +425,9 @@ def _outro(topic: str, nice: str) -> dict[str, Any]:
     return {
         "kind": "outro",
         "text": (
-            f"If this gave you a cleaner model of {topic}, subscribe. "
-            f"Comment with the part of {nice} you still think we got wrong. "
-            f"The next video goes one layer deeper."
+            f"If you stayed to the end, you felt it. Subscribe. "
+            f"Comment the exact second {nice} got you. "
+            f"The next one is the cut they never show."
         ),
         "on_screen": "SUBSCRIBE",
     }
@@ -435,7 +474,7 @@ def _fit_to_duration(scenes: list[dict[str, Any]], target: int) -> list[dict[str
 
 def _tags(topic: str, style: str) -> list[str]:
     words = [w.lower() for w in re.findall(r"[A-Za-z0-9]+", topic) if len(w) > 2]
-    base = words[:5] + [style, "explainer", "documentary", "facts", "youtube", "education", "channelforge"]
+    base = words[:5] + [style, "entertainment", "story", "movies", "shorts", "viral", "youtube", "channelforge"]
     seen = []
     for t in base:
         if t not in seen:
@@ -453,11 +492,11 @@ def _description(
     hashtags = " ".join(f"#{re.sub(r'[^A-Za-z0-9]', '', t)}" for t in tags[:6] if t)
     return (
         f"{hook}\n\n"
-        f"This ChannelForge video is a structured briefing on {nice}. "
+        f"A ChannelForge entertainment cut on {nice}. Hook, twist, payoff. "
         f"It was written, voiced, designed, and assembled in the studio pipeline.\n"
         f"{source_line}\n"
-        f"Chapters are auto-marked by scene. Watch once for the hook, again for the mechanism.\n\n"
-        f"If you want the next layer, subscribe and name the angle we should film.\n\n"
+        f"Watch once for the story. Rewind for the detail.\n\n"
+        f"Comment the second that got you.\n\n"
         f"{hashtags}"
     )
 
@@ -498,7 +537,7 @@ def normalize_script(data: dict[str, Any], project: dict[str, Any]) -> dict[str,
         "title": title[:90],
         "hook": data.get("hook") or scenes[0]["text"],
         "description": data.get("description") or _description(title, project.get("topic") or title, full, None, data.get("tags") or []),
-        "tags": data.get("tags") or _tags(project.get("topic") or title, project.get("style") or "explainer"),
+        "tags": data.get("tags") or _tags(project.get("topic") or title, project.get("style") or "entertainment"),
         "scenes": scenes,
         "full_text": full,
         "engine": data.get("engine") or "manual",

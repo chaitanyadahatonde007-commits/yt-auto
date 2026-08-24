@@ -101,7 +101,7 @@ def blank_project(payload: dict[str, Any]) -> dict[str, Any]:
     now = utcnow()
     topic = (payload.get("topic") or "Untitled idea").strip()
     fmt = payload.get("format") or "long"
-    style = payload.get("style") or "explainer"
+    style = payload.get("style") or "entertainment"
     target = int(payload.get("target_seconds") or (45 if fmt == "short" else 180))
     return {
         "id": new_id("cf"),
@@ -109,10 +109,10 @@ def blank_project(payload: dict[str, Any]) -> dict[str, Any]:
         "topic": topic,
         "notes": payload.get("notes") or "",
         "format": fmt,
-        "style": style,
+        "style": style or "entertainment",
         "target_seconds": target,
         "voice": payload.get("voice") or "local:en-us",
-        "visual_mood": payload.get("visual_mood") or "ember",
+        "visual_mood": payload.get("visual_mood") or "magenta",
         "status": "draft",
         "created_at": now,
         "updated_at": now,
@@ -178,7 +178,7 @@ def save_project(project: dict[str, Any]) -> dict[str, Any]:
                 project.get("title") or project.get("topic") or "Untitled",
                 project.get("topic") or "",
                 project.get("format") or "long",
-                project.get("style") or "explainer",
+                project.get("style") or "entertainment",
                 project.get("status") or "draft",
                 project["updated_at"],
                 json.dumps(project),
