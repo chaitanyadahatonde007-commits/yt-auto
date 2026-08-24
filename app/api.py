@@ -84,6 +84,8 @@ async def health() -> dict[str, Any]:
         "llm": public_settings()["has_openai"]
         or public_settings()["has_anthropic"]
         or public_settings()["has_gemini"],
+        "gemini": public_settings()["has_gemini"],
+        "gemini_does": public_settings().get("gemini_does") or [],
     }
 
 

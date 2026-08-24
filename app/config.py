@@ -76,6 +76,12 @@ def public_settings() -> dict[str, Any]:
     masked["has_anthropic"] = bool(data.get("anthropic_api_key"))
     masked["has_gemini"] = bool(data.get("gemini_api_key"))
     masked["has_google_oauth"] = bool(data.get("google_client_id") and data.get("google_client_secret"))
+    masked["gemini_does"] = [
+        "Writes the spoken script and scene list",
+        "Plans a unique picture for every scene from the line being said",
+        "Generates those scene stills (Gemini Flash Image)",
+        "Paints a thumbnail photograph from the title",
+    ]
     return masked
 
 

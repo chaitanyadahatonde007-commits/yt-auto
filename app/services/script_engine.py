@@ -478,6 +478,7 @@ def normalize_script(data: dict[str, Any], project: dict[str, Any]) -> dict[str,
                 "kind": raw.get("kind") or "narration",
                 "text": text,
                 "on_screen": (raw.get("on_screen") or _on_screen(text, "SCENE")).strip(),
+                "visual_prompt": (raw.get("visual_prompt") or "").strip(),
                 "duration": round(float(raw.get("duration") or estimate_seconds(text)), 2),
             }
         )

@@ -28,12 +28,14 @@ def _punchy_lines(project: dict[str, Any]) -> list[str]:
     return [" ".join(words[:mid]).upper(), " ".join(words[mid:]).upper()]
 
 
-def render_thumbnail_variant(project: dict[str, Any], variant: int) -> Image.Image:
+def render_thumbnail_variant(
+    project: dict[str, Any], variant: int, photo: Image.Image | None = None
+) -> Image.Image:
     size = (1280, 720)
     mood = project.get("visual_mood") or "ember"
     accent = MOOD_ACCENT.get(mood, (255, 72, 48))
     rng = random.Random(int(hashlib.sha256(f"{project['id']}:thumb:{variant}".encode()).hexdigest()[:12], 16))
-    plate = Image.open(_plate_path(mood, variant + 3)).convert("RGB")
+    plate = (photo or Image.open(_plate_path(mood, variant + 3))).convert("RGB")
     canvas = _fit_cover(plate, size).convert("RGBA")
 
     layouts = ("left-stack", "center-blast", "split-bar")
@@ -110,14 +112,34 @@ def render_thumbnail_variant(project: dict[str, Any], variant: int) -> Image.Ima
     return rgb
 
 
-def render_thumbnails(project: dict[str, Any]) -> dict[str, Any]:
+async def render_thumbnails(project: dict[str, Any]) -> dict[str, Any]:
+    from app.services.gemini_images import generate_still, last_image_error
+
     folder = project_dir(project["id"])
+    topic = project.get("topic") or project.get("title") or "the topic"
+    title = (project.get("script") or {}).get("title") or project.get("title") or topic
+    raw = folder / "thumb_raw.jpg"
+    photo = None
+    source = "plate"
+    prompt = (
+        f"YouTube thumbnail photograph for a video titled '{title}' about {topic}. "
+        "Dramatic lighting, one clear subject, high contrast, no text, no letters."
+    )
+    if await generate_still(prompt, raw, aspect="16:9"):
+        photo = Image.open(raw)
+        source = "gemini"
     variants = []
     for i, name in enumerate(("thumb_a.jpg", "thumb_b.jpg", "thumb_c.jpg")):
-        im = render_thumbnail_variant(project, i)
+        base = photo if i == 0 and photo is not None else None
+        im = render_thumbnail_variant(project, i, photo=base)
         im.save(folder / name, quality=93, optimize=True)
         variants.append(name)
     selected = project.get("thumbnail", {}).get("selected") if project.get("thumbnail") else None
     if selected not in variants:
         selected = variants[0]
-    return {"variants": variants, "selected": selected}
+    return {
+        "variants": variants,
+        "selected": selected,
+        "source": source,
+        "gemini_error": None if source == "gemini" else last_image_error(),
+    }

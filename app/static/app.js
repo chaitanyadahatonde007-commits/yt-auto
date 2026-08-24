@@ -66,6 +66,20 @@ function fmtTime(sec) {
   return `${m}:${String(s % 60).padStart(2, "0")}`;
 }
 
+function geminiUsage(p) {
+  const u = p.gemini_usage || {};
+  const bits = [];
+  if (u.script) bits.push(`script${u.script_model ? " (" + u.script_model + ")" : ""}`);
+  if (u.scene_images) bits.push(u.scene_images + " scene stills");
+  if (u.thumbnail) bits.push("thumbnail photo");
+  if (!bits.length) {
+    return settings.has_gemini
+      ? "Gemini will write the script and paint each scene when you run Auto-cut."
+      : "Add a Gemini key in Settings to get script-matched pictures.";
+  }
+  return "Gemini made: " + bits.join(" · ") + ". ";
+}
+
 async function boot() {
   try {
     [settings, yt] = await Promise.all([
@@ -234,7 +248,8 @@ async function renderStudio(id) {
           ${voice ? `<audio controls src="${voice}"></audio>` : ""}
           ${project.youtube?.url ? `<p class="toast"><a href="${esc(project.youtube.url)}" target="_blank" rel="noreferrer">Open on YouTube</a></p>` : ""}
           <div class="notice" style="margin-top:14px">
-            Neural voices (Edge / OpenAI) are used when the network allows. Otherwise the studio falls back to the local voice so a cut still ships.
+            ${geminiUsage(project)}
+            Neural voices (Edge / OpenAI) when the network allows; otherwise local voice.
           </div>
         </aside>
       </div>
@@ -376,7 +391,8 @@ function stepHtml(p, step) {
     const scenes = p.visuals?.scenes || [];
     return `
       <label class="field"><span>Mood</span>${fieldSelect("visual_mood", MOODS.map((m) => [m, m]), p.visual_mood)}</label>
-      <div class="scene-strip">${scenes.map((s) => `<img src="${s.url}" alt="${esc(s.on_screen || "")}" />`).join("")}</div>
+      <p class="notice">${p.visuals ? `${p.visuals.gemini_images || 0} Gemini stills painted to match the script${p.visuals.gemini_error ? " · " + esc(p.visuals.gemini_error) : ""}` : "Each scene gets its own picture from the line being said."}</p>
+      <div class="scene-strip">${scenes.map((s) => `<img src="${s.url}" alt="${esc(s.on_screen || "")}" title="${esc(s.source || "")}" />`).join("")}</div>
       <button class="btn primary" id="run-step" style="margin-top:14px">Design frames</button>
     `;
   }

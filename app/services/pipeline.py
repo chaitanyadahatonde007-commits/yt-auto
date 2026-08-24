@@ -34,6 +34,12 @@ async def step_script(project: dict[str, Any]) -> dict[str, Any]:
     script = await write_script(project, project.get("research"))
     project["script"] = script
     project["title"] = script.get("title") or project.get("title")
+    project["gemini_usage"] = {
+        **(project.get("gemini_usage") or {}),
+        "script": script.get("engine") == "gemini",
+        "script_model": script.get("model"),
+        "script_error": script.get("llm_error"),
+    }
     project["status"] = "scripted"
     return save_project(project)
 
@@ -55,13 +61,21 @@ async def step_visuals(project: dict[str, Any]) -> dict[str, Any]:
     script = project.get("script")
     if not script:
         raise RuntimeError("Write a script first")
-    project["visuals"] = render_visuals(project, script["scenes"])
+    project["visuals"] = await render_visuals(project, script["scenes"])
+    usage = dict(project.get("gemini_usage") or {})
+    usage["scene_images"] = (project["visuals"] or {}).get("gemini_images") or 0
+    usage["scene_error"] = (project["visuals"] or {}).get("gemini_error")
+    project["gemini_usage"] = usage
     project["status"] = "designed"
     return save_project(project)
 
 
 async def step_thumbnail(project: dict[str, Any]) -> dict[str, Any]:
-    project["thumbnail"] = render_thumbnails(project)
+    project["thumbnail"] = await render_thumbnails(project)
+    usage = dict(project.get("gemini_usage") or {})
+    usage["thumbnail"] = (project["thumbnail"] or {}).get("source") == "gemini"
+    usage["thumbnail_error"] = (project["thumbnail"] or {}).get("gemini_error")
+    project["gemini_usage"] = usage
     if project.get("status") in {None, "draft", "researched", "scripted", "voiced", "designed"}:
         project["status"] = project.get("status") or "designed"
     return save_project(project)
@@ -94,13 +108,13 @@ async def run_auto(project_id: str, job_id: str | None = None, publish: bool = F
     try:
         emit(0.04, "research", "Pulling a briefing on the topic")
         project = await step_research(project)
-        emit(0.16, "script", "Writing narration and scene cards")
+        emit(0.16, "script", "Gemini is writing narration and a shot list")
         project = await step_script(project)
         emit(0.34, "voice", "Recording the studio voice")
         project = await step_voice(project)
-        emit(0.52, "visuals", "Designing motion frames")
+        emit(0.52, "visuals", "Gemini is painting a still for each scene")
         project = await step_visuals(project)
-        emit(0.66, "thumbnail", "Cutting three thumbnail posters")
+        emit(0.66, "thumbnail", "Gemini is cutting thumbnail art")
         project = await step_thumbnail(project)
         emit(0.74, "render", "Assembling picture, captions, and mix")
         project = await step_render(project)

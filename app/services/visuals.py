@@ -108,10 +108,12 @@ def render_scene_frame(
     index: int,
     total: int,
     size: tuple[int, int],
+    photo: Image.Image | None = None,
 ) -> Image.Image:
     mood = project.get("visual_mood") or "ember"
     rng = _seed(project["id"], scene.get("id") or str(index))
-    base = Image.open(_plate_path(mood, index)).convert("RGB")
+    painted = photo is not None
+    base = (photo or Image.open(_plate_path(mood, index))).convert("RGB")
     # generate slightly larger for Ken Burns
     frame = _fit_cover(base, (int(size[0] * 1.18), int(size[1] * 1.18)))
     # unique crop origin
@@ -123,7 +125,8 @@ def render_scene_frame(
 
     accent = MOOD_ACCENT.get(mood, (255, 72, 48))
     kind = scene.get("kind") or "narration"
-    dark = Image.new("RGBA", size, (6, 6, 10, 118 if kind != "title" else 150))
+    wash = 70 if painted else (118 if kind != "title" else 150)
+    dark = Image.new("RGBA", size, (6, 6, 10, wash))
     canvas = Image.alpha_composite(canvas, dark)
 
     # light slab
@@ -186,7 +189,7 @@ def render_scene_frame(
     draw.rectangle((margin, y + 10, margin + 120, y + 16), fill=accent + (255,))
 
     snippet = scene.get("text") or ""
-    if not is_short:
+    if not is_short and not painted:
         snippet_lines = _wrap(draw, snippet, body_font, int(w * 0.62))[:3]
         sy = y + 36
         for line in snippet_lines:

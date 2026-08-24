@@ -69,7 +69,13 @@ In **Settings**, paste one of:
 
 - OpenAI API key (`gpt-4o-mini` by default)
 - Anthropic API key
-- Gemini API key from [Google AI Studio](https://aistudio.google.com/apikey) (`AIza…` or the newer `AQ.…` keys both work). Paste it in **Settings**, then Save. The key stays in local `data/settings.json` and is never committed.
+- Gemini API key from [Google AI Studio](https://aistudio.google.com/apikey) (`AIza…` or `AQ.…`). Paste it in **Settings**. That key is used to:
+  1. Write the spoken script and scene list
+  2. Plan a unique picture for each line
+  3. Generate those scene stills
+  4. Paint a thumbnail photograph
+
+  It is **not** used for voice, FFmpeg render, or YouTube upload. The key stays in local `data/settings.json` and is never committed.
 
 The writer stays honest: it will not invent statistics. Without a key it still produces a structured host-read from the briefing.
 
