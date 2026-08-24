@@ -39,7 +39,22 @@ def next_slot(after: datetime | None = None) -> datetime:
 
 def status_payload() -> dict[str, Any]:
     settings = load_settings()
-    last = last_successful_autopilot()
+    youtube_ok = False
+    try:
+        youtube_ok = bool(connected().get("connected"))
+    except Exception:
+        youtube_ok = False
+    try:
+        last = last_successful_autopilot()
+        runs = list_autopilot_runs(20)
+        today = autopilot_count_today()
+        busy = autopilot_busy()
+    except Exception:
+        last, runs, today, busy = None, [], 0, False
+    try:
+        nxt = next_slot().isoformat()
+    except Exception:
+        nxt = ""
     return {
         "enabled": bool(settings.get("autopilot_enabled")),
         "interval_hours": int(settings.get("autopilot_interval_hours") or 6),
@@ -48,12 +63,12 @@ def status_payload() -> dict[str, Any]:
         "style": settings.get("autopilot_style") or "explainer",
         "region": settings.get("autopilot_region") or "IN",
         "publish": settings.get("autopilot_publish") or "schedule",
-        "today": autopilot_count_today(),
-        "busy": autopilot_busy(),
-        "youtube": connected().get("connected"),
+        "today": today,
+        "busy": busy,
+        "youtube": youtube_ok,
         "last": last,
-        "next_slot": next_slot().isoformat(),
-        "runs": list_autopilot_runs(20),
+        "next_slot": nxt,
+        "runs": runs,
         "note": "Leave ChannelForge running. Autopilot only fires while py -3 run.py is open.",
     }
 

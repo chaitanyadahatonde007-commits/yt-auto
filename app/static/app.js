@@ -433,6 +433,107 @@ async function watchJob(id, onTick) {
   throw new Error("Timed out waiting for the studio job");
 }
 
+async function renderAutopilot() {
+  app.innerHTML = `<div class="kicker">Hands-off</div><div class="toprow"><h1>Autopilot</h1></div><p class="empty">Loading schedule…</p>`;
+  let pack;
+  try {
+    pack = await api("/api/autopilot");
+  } catch (err) {
+    app.innerHTML = `<div class="kicker">Hands-off</div><div class="toprow"><h1>Autopilot</h1></div><p class="toast err">${esc(err.message)}</p><p class="notice">If this is a missing table, restart <code>py -3 run.py</code>.</p>`;
+    return;
+  }
+  const on = !!pack.enabled;
+  app.innerHTML = `
+    <div class="kicker">Hands-off</div>
+    <div class="toprow">
+      <div>
+        <h1>Autopilot</h1>
+        <p class="lede">Reads what is famous right now, writes a video with no prompt from you, then schedules it. Leave the Command Prompt running.</p>
+      </div>
+      <div class="row">
+        <button class="btn ${on ? "" : "primary"}" id="toggle" type="button">${on ? "Pause" : "Start autopilot"}</button>
+        <button class="btn primary" id="now" type="button">Make one now</button>
+      </div>
+    </div>
+    <div class="studio">
+      <form class="panel" id="ap">
+        <div class="form-grid">
+          <label class="field"><span>Every (hours)</span><input type="number" name="autopilot_interval_hours" min="1" max="48" value="${esc(pack.interval_hours)}" /></label>
+          <label class="field"><span>Max per day</span><input type="number" name="autopilot_daily_cap" min="1" max="12" value="${esc(pack.daily_cap)}" /></label>
+          <label class="field"><span>Format</span>${fieldSelect("autopilot_format", [["short", "Short 9:16"], ["long", "Long 16:9"]], pack.format)}</label>
+          <label class="field"><span>Style</span>${fieldSelect("autopilot_style", STYLES, pack.style)}</label>
+          <label class="field"><span>Region</span>${fieldSelect("autopilot_region", [["IN", "India"], ["US", "United States"], ["GB", "UK"]], pack.region)}</label>
+          <label class="field"><span>When ready</span>${fieldSelect("autopilot_publish", [["schedule", "Schedule on YouTube"], ["private", "Upload private now"], ["unlisted", "Upload unlisted now"], ["public", "Upload public now"], ["none", "Only render, do not upload"]], pack.publish)}</label>
+        </div>
+        <button class="btn" type="submit">Save schedule</button>
+        <p class="notice" style="margin-top:14px">Today ${esc(pack.today)} / ${esc(pack.daily_cap)}. Next slot ${esc(String(pack.next_slot || "").replace("T", " ").slice(0, 16))} IST. YouTube ${pack.youtube ? "connected" : "not connected — videos will still be made"}.</p>
+        <p class="toast" id="msg">${pack.busy ? "A video is being made now…" : ""}</p>
+      </form>
+      <aside class="panel">
+        <div class="lbl">Famous right now</div>
+        <ul id="trend-list"><li class="empty">Checking feeds…</li></ul>
+      </aside>
+    </div>
+    <h2 class="section">Queue</h2>
+    <div class="grid" id="ap-queue">
+      ${(pack.runs || []).map((r) => `
+        <a class="card" href="${r.project_id ? "#/p/" + r.project_id : "#/autopilot"}">
+          <div class="body">
+            <h3>${esc(r.topic || "…")}</h3>
+            <div class="meta">
+              <span class="status ${esc(r.status)}">${esc(r.status)}</span>
+              <span>${esc(r.source || "")}</span>
+              <span>${esc(String(r.scheduled_for || "").replace("T", " ").slice(0, 16))}</span>
+            </div>
+            <p class="toast">${esc(r.message || r.error || "")}</p>
+          </div>
+        </a>`).join("") || "<p class='empty'>Nothing queued yet. Click Make one now.</p>"}
+    </div>
+  `;
+  $("#ap").onsubmit = async (e) => {
+    e.preventDefault();
+    const body = Object.fromEntries(new FormData(e.target).entries());
+    body.autopilot_interval_hours = Number(body.autopilot_interval_hours);
+    body.autopilot_daily_cap = Number(body.autopilot_daily_cap);
+    body.autopilot_enabled = on;
+    try {
+      await api("/api/autopilot", { method: "PUT", body });
+      $("#msg").textContent = "Schedule saved.";
+    } catch (err) {
+      $("#msg").textContent = err.message;
+      $("#msg").classList.add("err");
+    }
+  };
+  $("#toggle").onclick = async () => {
+    try {
+      await api("/api/autopilot", { method: "PUT", body: { autopilot_enabled: !on } });
+      renderAutopilot();
+    } catch (err) {
+      $("#msg").textContent = err.message;
+    }
+  };
+  $("#now").onclick = async () => {
+    $("#msg").textContent = "Picking a famous topic and starting a cut…";
+    try {
+      await api("/api/autopilot/run-now", { method: "POST" });
+      $("#msg").textContent = "Started. Refreshing the queue…";
+      setTimeout(renderAutopilot, 2000);
+    } catch (err) {
+      $("#msg").textContent = err.message;
+      $("#msg").classList.add("err");
+    }
+  };
+  try {
+    const t = await api("/api/trends");
+    const items = t.trends || [];
+    $("#trend-list").innerHTML = items.slice(0, 10).map((item) =>
+      `<li><strong>${esc(item.title)}</strong> <span class="meta">${esc(item.source || "")}</span></li>`
+    ).join("") || "<li class='empty'>No feed yet. Check the network.</li>";
+  } catch {
+    $("#trend-list").innerHTML = "<li class='empty'>Could not load trends. You can still click Make one now.</li>";
+  }
+}
+
 async function renderChannel() {
   yt = await api("/api/youtube/status");
   app.innerHTML = `

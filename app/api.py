@@ -241,14 +241,20 @@ async def youtube_disconnect() -> dict[str, Any]:
 
 @router.get("/api/trends")
 async def trends() -> dict[str, Any]:
-    from app.services.trends import discover_trends
+    try:
+        from app.services.trends import discover_trends
 
-    items = await discover_trends()
-    return {"trends": items}
+        items = await discover_trends()
+        return {"trends": items}
+    except Exception as exc:
+        return {"trends": [], "error": str(exc)}
 
 
 @router.get("/api/autopilot")
 async def autopilot_status() -> dict[str, Any]:
+    from app.store import init_db
+
+    init_db()
     from app.services.autopilot import status_payload
 
     return status_payload()
