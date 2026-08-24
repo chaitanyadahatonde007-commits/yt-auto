@@ -108,7 +108,7 @@ async def run_auto(project_id: str, job_id: str | None = None, publish: bool = F
     try:
         emit(0.04, "research", "Pulling a briefing on the topic")
         project = await step_research(project)
-        emit(0.16, "script", "Gemini is writing narration and a shot list")
+        emit(0.16, "script", "Writing narration and a shot list")
         project = await step_script(project)
         emit(0.34, "voice", "Recording the studio voice")
         project = await step_voice(project)

@@ -68,16 +68,16 @@ function fmtTime(sec) {
 
 function geminiUsage(p) {
   const u = p.gemini_usage || {};
+  const writer = p.script?.engine;
   const bits = [];
-  if (u.script) bits.push(`script${u.script_model ? " (" + u.script_model + ")" : ""}`);
-  if (u.scene_images) bits.push(u.scene_images + " scene stills");
-  if (u.thumbnail) bits.push("thumbnail photo");
+  if (writer) bits.push("script by " + writer + (p.script?.model ? " (" + p.script.model + ")" : ""));
+  if (u.scene_images) bits.push(u.scene_images + " Gemini stills");
+  if (u.thumbnail) bits.push("Gemini thumbnail");
   if (!bits.length) {
-    return settings.has_gemini
-      ? "Gemini will write the script and paint each scene when you run Auto-cut."
-      : "Add a Gemini key in Settings to get script-matched pictures.";
+    return (settings.has_groq ? "Groq writes the script. " : "") +
+      (settings.has_gemini ? "Gemini paints each scene." : "Add keys in Settings.");
   }
-  return "Gemini made: " + bits.join(" · ") + ". ";
+  return bits.join(" · ") + ". ";
 }
 
 async function boot() {
@@ -478,10 +478,25 @@ async function renderSettings() {
         <label class="field"><span>Default voice</span>${fieldSelect("default_voice", voices.map((v) => [v.id, v.label]), val("default_voice"))}</label>
         <label class="field"><span>Default privacy</span>${fieldSelect("default_privacy", [["private", "Private"], ["unlisted", "Unlisted"], ["public", "Public"]], val("default_privacy"))}</label>
       </div>
-      <h2 class="section">Better writing (optional)</h2>
-      <label class="field"><span>OpenAI API key</span><input name="openai_api_key" type="password" value="${esc(val("openai_api_key"))}" placeholder="sk-…" /></label>
-      <label class="field"><span>Anthropic API key</span><input name="anthropic_api_key" type="password" value="${esc(val("anthropic_api_key"))}" /></label>
-      <label class="field"><span>Gemini API key (AI Studio, AIza or AQ. keys both work)</span><input name="gemini_api_key" type="password" value="${esc(val("gemini_api_key"))}" placeholder="AQ.… or AIza…" /></label>
+      <h2 class="section">Groq key (gsk_) — writing + optional voice</h2>
+      <div class="notice">
+        ${settings.has_groq ? "Groq is connected." : "From console.groq.com. Starts with gsk_."}
+        <ul>
+          ${(settings.groq_does || ["Writes the script fast", "Plans a picture prompt per scene", "Optional PlayAI voice"]).map((item) => `<li>${esc(item)}</li>`).join("")}
+        </ul>
+        Groq cannot generate pictures.
+      </div>
+      <label class="field"><span>Groq API key</span><input name="groq_api_key" type="password" value="${esc(val("groq_api_key"))}" placeholder="gsk_…" /></label>
+      <h2 class="section">Gemini key — pictures</h2>
+      <div class="notice">
+        ${settings.has_gemini ? "Gemini is connected." : "From Google AI Studio. AIza or AQ. keys."}
+        <ul>
+          ${(settings.gemini_does || ["Paints scene stills", "Thumbnail photo", "Backup writer"]).map((item) => `<li>${esc(item)}</li>`).join("")}
+        </ul>
+      </div>
+      <label class="field"><span>Gemini API key</span><input name="gemini_api_key" type="password" value="${esc(val("gemini_api_key"))}" placeholder="AQ.… or AIza…" /></label>
+      <label class="field"><span>OpenAI API key (optional)</span><input name="openai_api_key" type="password" value="${esc(val("openai_api_key"))}" placeholder="sk-…" /></label>
+      <label class="field"><span>Anthropic API key (optional)</span><input name="anthropic_api_key" type="password" value="${esc(val("anthropic_api_key"))}" /></label>
       <h2 class="section">YouTube OAuth</h2>
       <label class="field"><span>Public base URL</span><input name="public_base_url" value="${esc(val("public_base_url"))}" placeholder="https://your-host" /></label>
       <label class="field"><span>Google client ID</span><input name="google_client_id" value="${esc(val("google_client_id"))}" /></label>

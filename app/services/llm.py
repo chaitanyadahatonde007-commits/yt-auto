@@ -69,10 +69,22 @@ def last_error() -> str | None:
     return LAST_ERROR
 
 
+GROQ_MODELS = (
+    "llama-3.3-70b-versatile",
+    "llama-3.1-8b-instant",
+    "openai/gpt-oss-120b",
+    "meta-llama/llama-4-scout-17b-16e-instruct",
+)
+
+
 async def generate_script_llm(brief: str) -> dict[str, Any] | None:
     global LAST_ERROR
     LAST_ERROR = None
     settings = load_settings()
+    if settings.get("groq_api_key"):
+        data = await _groq(brief, settings)
+        if data:
+            return data
     if settings.get("openai_api_key"):
         data = await _openai(brief, settings)
         if data:
@@ -85,6 +97,51 @@ async def generate_script_llm(brief: str) -> dict[str, Any] | None:
         data = await _gemini(brief, settings)
         if data:
             return data
+    return None
+
+
+async def _groq(brief: str, settings: dict[str, Any]) -> dict[str, Any] | None:
+    global LAST_ERROR
+    preferred = settings.get("groq_model") or GROQ_MODELS[0]
+    models: list[str] = []
+    for name in (preferred, *GROQ_MODELS):
+        if name and name not in models:
+            models.append(name)
+    errors: list[str] = []
+    key = settings["groq_api_key"].strip()
+    try:
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            for model in models:
+                res = await client.post(
+                    "https://api.groq.com/openai/v1/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {key}",
+                        "Content-Type": "application/json",
+                    },
+                    json={
+                        "model": model,
+                        "temperature": 0.7,
+                        "response_format": {"type": "json_object"},
+                        "messages": [
+                            {"role": "system", "content": SYSTEM},
+                            {"role": "user", "content": brief},
+                        ],
+                    },
+                )
+                if res.status_code >= 400:
+                    errors.append(f"{model} {res.status_code}: {res.text[:160]}")
+                    continue
+                content = res.json()["choices"][0]["message"]["content"]
+                parsed = _parse_json(content)
+                if parsed:
+                    parsed["engine"] = "groq"
+                    parsed["model"] = model
+                    return parsed
+                errors.append(f"{model}: could not parse JSON script")
+    except Exception as exc:
+        LAST_ERROR = f"Groq error: {exc}"
+        return None
+    LAST_ERROR = "Groq failed. " + " | ".join(errors[-3:])
     return None
 
 

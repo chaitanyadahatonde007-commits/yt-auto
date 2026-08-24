@@ -32,6 +32,14 @@ OPENAI_VOICES = [
     {"id": "openai:shimmer", "label": "Shimmer · OpenAI", "gender": "feminine", "engine": "openai"},
 ]
 
+GROQ_VOICES = [
+    {"id": "groq:Fritz-PlayAI", "label": "Fritz · Groq PlayAI", "gender": "masculine", "engine": "groq"},
+    {"id": "groq:Celeste-PlayAI", "label": "Celeste · Groq PlayAI", "gender": "feminine", "engine": "groq"},
+    {"id": "groq:Mason-PlayAI", "label": "Mason · Groq PlayAI", "gender": "masculine", "engine": "groq"},
+    {"id": "groq:Arista-PlayAI", "label": "Arista · Groq PlayAI", "gender": "feminine", "engine": "groq"},
+    {"id": "groq:Thunder-PlayAI", "label": "Thunder · Groq PlayAI", "gender": "masculine", "engine": "groq"},
+]
+
 LOCAL_VOICES = [
     {"id": "local:en-us", "label": "Studio US · local", "gender": "masculine", "engine": "local", "espeak": "en-us", "speed": 138, "pitch": 42},
     {"id": "local:en-us-warm", "label": "Studio Warm · local", "gender": "feminine", "engine": "local", "espeak": "en-us", "speed": 142, "pitch": 62},
@@ -45,6 +53,8 @@ def list_voices() -> list[dict[str, Any]]:
 
     voices = list(LOCAL_VOICES)
     voices.extend(EDGE_VOICES)
+    if load_settings().get("groq_api_key"):
+        voices.extend(GROQ_VOICES)
     if load_settings().get("openai_api_key"):
         voices.extend(OPENAI_VOICES)
     return [
@@ -152,6 +162,10 @@ async def synthesize(project: dict[str, Any], text: str, voice_id: str | None = 
                 await _openai(text, spec, raw_path.with_suffix(".mp3"))
                 await _to_wav(raw_path.with_suffix(".mp3"), wav_path)
                 words = None
+            elif engine == "groq":
+                await _groq_tts(text, spec, raw_path.with_suffix(".wav"))
+                await _to_wav(raw_path.with_suffix(".wav"), wav_path)
+                words = None
             elif engine == "gtts":
                 await _gtts(text, raw_path.with_suffix(".mp3"))
                 await _to_wav(raw_path.with_suffix(".mp3"), wav_path)
@@ -183,10 +197,16 @@ def _engine_order(voice_id: str) -> list[tuple[str, Any]]:
         order.append(("edge", voice_id.split(":", 1)[1]))
     elif voice_id.startswith("openai:"):
         order.append(("openai", voice_id.split(":", 1)[1]))
+    elif voice_id.startswith("groq:"):
+        order.append(("groq", voice_id.split(":", 1)[1]))
     else:
         spec = next((v for v in LOCAL_VOICES if v["id"] == voice_id), LOCAL_VOICES[0])
         order.append(("local", spec))
     # Fallbacks
+    from app.config import load_settings
+
+    if load_settings().get("groq_api_key") and not any(e[0] == "groq" for e in order):
+        order.append(("groq", "Fritz-PlayAI"))
     if not any(e[0] == "edge" for e in order):
         order.append(("edge", "en-US-AndrewNeural"))
     order.append(("gtts", None))

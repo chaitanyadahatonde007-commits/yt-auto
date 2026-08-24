@@ -20,6 +20,8 @@ DEFAULTS: dict[str, Any] = {
     "anthropic_model": "claude-3-5-haiku-latest",
     "gemini_api_key": "",
     "gemini_model": "gemini-2.5-flash",
+    "groq_api_key": "",
+    "groq_model": "llama-3.3-70b-versatile",
     "google_client_id": "",
     "google_client_secret": "",
     "public_base_url": "",
@@ -42,6 +44,7 @@ def load_settings() -> dict[str, Any]:
         "openai_api_key": "OPENAI_API_KEY",
         "anthropic_api_key": "ANTHROPIC_API_KEY",
         "gemini_api_key": "GEMINI_API_KEY",
+        "groq_api_key": "GROQ_API_KEY",
     }
     for field, env_name in env_map.items():
         if not merged.get(field) and os.environ.get(env_name):
@@ -87,4 +90,9 @@ def public_settings() -> dict[str, Any]:
 
 def llm_available() -> bool:
     data = load_settings()
-    return bool(data.get("openai_api_key") or data.get("anthropic_api_key") or data.get("gemini_api_key"))
+    return bool(
+        data.get("openai_api_key")
+        or data.get("anthropic_api_key")
+        or data.get("gemini_api_key")
+        or data.get("groq_api_key")
+    )
