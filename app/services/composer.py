@@ -148,6 +148,50 @@ async def _scene_clip(
     )
 
 
+async def _from_video(
+    source: Path,
+    dest: Path,
+    duration: float,
+    size: tuple[int, int],
+) -> None:
+    duration = max(1.2, duration)
+    w, h = size
+    fade = min(0.28, duration / 6)
+    fade_out = max(0.0, duration - fade)
+    vf = (
+        f"scale={w}:{h}:force_original_aspect_ratio=increase,"
+        f"crop={w}:{h},"
+        f"fade=t=in:st=0:d={fade:.2f},"
+        f"fade=t=out:st={fade_out:.2f}:d={fade:.2f},"
+        f"format=yuv420p"
+    )
+    await _run_ffmpeg(
+        [
+            "-y",
+            "-stream_loop",
+            "-1",
+            "-i",
+            str(source),
+            "-t",
+            f"{duration:.3f}",
+            "-vf",
+            vf,
+            "-r",
+            "30",
+            "-c:v",
+            "libx264",
+            "-preset",
+            "veryfast",
+            "-crf",
+            "19",
+            "-pix_fmt",
+            "yuv420p",
+            "-an",
+            str(dest),
+        ]
+    )
+
+
 async def _make_bgm(dest: Path, duration: float) -> None:
     duration = max(2.0, duration)
     await _run_ffmpeg(
@@ -193,7 +237,12 @@ async def compose_video(project: dict[str, Any]) -> dict[str, Any]:
         if not image.exists():
             raise RuntimeError(f"Missing visual for {scene.get('id')}")
         dest = clips_dir / f"{scene.get('id') or i:02}.mp4"
-        await _scene_clip(image, dest, float(scene.get("duration") or 3), size, i, scene.get("text") or "")
+        motion = vis.get("clip")
+        motion_path = folder / motion if motion else None
+        if motion_path and motion_path.exists() and motion_path.stat().st_size > 8000:
+            await _from_video(motion_path, dest, float(scene.get("duration") or 3), size)
+        else:
+            await _scene_clip(image, dest, float(scene.get("duration") or 3), size, i, scene.get("text") or "")
         clip_paths.append(dest)
 
     list_file = clips_dir / "concat.txt"

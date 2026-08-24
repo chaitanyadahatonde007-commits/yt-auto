@@ -81,6 +81,7 @@ def public_settings() -> dict[str, Any]:
         "anthropic_api_key",
         "gemini_api_key",
         "groq_api_key",
+        "wavespeed_api_key",
         "google_client_secret",
     ):
         if masked.get(key):
@@ -89,15 +90,23 @@ def public_settings() -> dict[str, Any]:
     masked["has_anthropic"] = bool(data.get("anthropic_api_key"))
     masked["has_gemini"] = bool(data.get("gemini_api_key"))
     masked["has_groq"] = bool(data.get("groq_api_key"))
+    masked["has_wavespeed"] = bool(data.get("wavespeed_api_key"))
     masked["has_google_oauth"] = bool(data.get("google_client_id") and data.get("google_client_secret"))
     masked["groq_does"] = [
         "Writes the spoken script and scene list (very fast)",
         "Plans a unique picture prompt for every scene",
         "Optional PlayAI studio voice",
     ]
+    masked["wavespeed_does"] = [
+        "Paints several scene stills (Flux)",
+        "Turns stills into real motion clips (image-to-video)",
+        "Also tries text-to-video for the same scene",
+        "Keeps the clip with the strongest motion and detail",
+        "Paints the thumbnail photograph",
+    ]
     masked["gemini_does"] = [
-        "Generates the actual scene stills (pictures)",
-        "Paints a thumbnail photograph from the title",
+        "Backup stills if WaveSpeed fails",
+        "Backup thumbnail if WaveSpeed fails",
         "Backup script writer if Groq is down",
     ]
     return masked

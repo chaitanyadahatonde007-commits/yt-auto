@@ -392,7 +392,7 @@ function stepHtml(p, step) {
     const scenes = p.visuals?.scenes || [];
     return `
       <label class="field"><span>Mood</span>${fieldSelect("visual_mood", MOODS.map((m) => [m, m]), p.visual_mood)}</label>
-      <p class="notice">${p.visuals ? `${p.visuals.gemini_images || 0} Gemini stills painted to match the script${p.visuals.gemini_error ? " · " + esc(p.visuals.gemini_error) : ""}` : "Each scene gets its own picture from the line being said."}</p>
+      <p class="notice">${p.visuals ? `${p.visuals.gemini_images || 0} AI stills · ${p.visuals.motion_clips || 0} motion clips (best of I2V/T2V)${p.visuals.gemini_error ? " · " + esc(p.visuals.gemini_error) : ""}` : "WaveSpeed paints stills, shoots motion, and we keep the best clip per scene."}</p>
       <div class="scene-strip">${scenes.map((s) => `<img src="${s.url}" alt="${esc(s.on_screen || "")}" title="${esc(s.source || "")}" />`).join("")}</div>
       <button class="btn primary" id="run-step" style="margin-top:14px">Design frames</button>
     `;

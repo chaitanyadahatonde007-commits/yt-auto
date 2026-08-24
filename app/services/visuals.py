@@ -207,24 +207,82 @@ def render_scene_frame(
     return rgb
 
 
-def render_visuals(project: dict[str, Any], scenes: list[dict[str, Any]]) -> dict[str, Any]:
+async def render_visuals(project: dict[str, Any], scenes: list[dict[str, Any]]) -> dict[str, Any]:
+    from app.services.gemini_images import generate_still, last_image_error, visual_prompt_for
+    from app.services.wavespeed import generate_video_i2v, generate_video_t2v, last_error as ws_error, pick_best_clip
+
     fmt = project.get("format") or "long"
     size = (1080, 1920) if fmt == "short" else (1920, 1080)
-    folder = project_dir(project["id"]) / "scenes"
+    aspect = "9:16" if fmt == "short" else "16:9"
+    root = project_dir(project["id"])
+    folder = root / "scenes"
     folder.mkdir(parents=True, exist_ok=True)
+    motion_dir = root / "motion"
+    motion_dir.mkdir(exist_ok=True)
     outputs = []
+    painted_n = 0
+    motion_n = 0
+    last_err = None
     for i, scene in enumerate(scenes):
-        frame = render_scene_frame(project, scene, i, len(scenes), size)
-        rel = f"scenes/{scene.get('id') or f'sc{i+1:02d}'}.jpg"
-        dest = project_dir(project["id"]) / rel
+        sid = scene.get("id") or f"sc{i+1:02d}"
+        prompt = visual_prompt_for(scene, project)
+        photo = None
+        source = "plate"
+        raw = folder / f"{sid}_raw.jpg"
+        if i < 12:
+            ok = await generate_still(prompt, raw, aspect=aspect)
+            if ok and raw.exists():
+                photo = Image.open(raw)
+                source = "ai"
+                painted_n += 1
+            else:
+                last_err = last_image_error()
+        frame = render_scene_frame(project, scene, i, len(scenes), size, photo=photo)
+        rel = f"scenes/{sid}.jpg"
+        dest = root / rel
         frame.save(dest, quality=92, optimize=True)
+
+        clip_rel = None
+        clip_kind = None
+        if i < 6:
+            candidates: list[tuple[str, Path]] = []
+            still_src = raw if raw.exists() else dest
+            i2v = motion_dir / f"{sid}_i2v.mp4"
+            t2v = motion_dir / f"{sid}_t2v.mp4"
+            dur = max(4, min(8, int(round(float(scene.get("duration") or 5)))))
+            if await generate_video_i2v(prompt, still_src, i2v, duration=dur):
+                candidates.append(("i2v", i2v))
+            if await generate_video_t2v(prompt, t2v, aspect=aspect, duration=dur):
+                candidates.append(("t2v", t2v))
+            winner = await pick_best_clip(candidates)
+            if winner:
+                clip_kind, clip_path = winner
+                chosen = motion_dir / f"{sid}_best.mp4"
+                chosen.write_bytes(clip_path.read_bytes())
+                clip_rel = f"motion/{sid}_best.mp4"
+                motion_n += 1
+            elif not last_err:
+                last_err = ws_error()
+
         outputs.append(
             {
-                "id": scene.get("id"),
+                "id": sid,
                 "path": rel,
+                "clip": clip_rel,
+                "clip_kind": clip_kind,
                 "kind": scene.get("kind"),
                 "on_screen": scene.get("on_screen"),
+                "visual_prompt": prompt,
+                "source": source,
                 "duration": scene.get("duration"),
             }
         )
-    return {"format": fmt, "width": size[0], "height": size[1], "scenes": outputs}
+    return {
+        "format": fmt,
+        "width": size[0],
+        "height": size[1],
+        "scenes": outputs,
+        "gemini_images": painted_n,
+        "motion_clips": motion_n,
+        "gemini_error": last_err,
+    }

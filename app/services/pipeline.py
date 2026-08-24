@@ -64,6 +64,7 @@ async def step_visuals(project: dict[str, Any]) -> dict[str, Any]:
     project["visuals"] = await render_visuals(project, script["scenes"])
     usage = dict(project.get("gemini_usage") or {})
     usage["scene_images"] = (project["visuals"] or {}).get("gemini_images") or 0
+    usage["motion_clips"] = (project["visuals"] or {}).get("motion_clips") or 0
     usage["scene_error"] = (project["visuals"] or {}).get("gemini_error")
     project["gemini_usage"] = usage
     project["status"] = "designed"
@@ -112,9 +113,9 @@ async def run_auto(project_id: str, job_id: str | None = None, publish: bool = F
         project = await step_script(project)
         emit(0.34, "voice", "Recording the studio voice")
         project = await step_voice(project)
-        emit(0.52, "visuals", "Gemini is painting a still for each scene")
+        emit(0.52, "visuals", "WaveSpeed is painting stills and shooting motion clips")
         project = await step_visuals(project)
-        emit(0.66, "thumbnail", "Gemini is cutting thumbnail art")
+        emit(0.66, "thumbnail", "Picking the strongest thumbnail")
         project = await step_thumbnail(project)
         emit(0.74, "render", "Assembling picture, captions, and mix")
         project = await step_render(project)
