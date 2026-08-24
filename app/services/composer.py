@@ -293,6 +293,7 @@ async def compose_video(project: dict[str, Any]) -> dict[str, Any]:
     )
 
     final = folder / "final.mp4"
+    tmp_final = folder / "final.tmp.mp4"
     await _run_ffmpeg(
         [
             "-y",
@@ -319,9 +320,13 @@ async def compose_video(project: dict[str, Any]) -> dict[str, Any]:
             "-shortest",
             "-movflags",
             "+faststart",
-            str(final),
+            str(tmp_final),
         ]
     )
+    if tmp_final.exists():
+        if final.exists():
+            final.unlink()
+        tmp_final.replace(final)
     final_duration = await ffprobe_duration(final)
     return {
         "path": "final.mp4",

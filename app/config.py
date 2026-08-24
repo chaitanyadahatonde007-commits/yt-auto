@@ -24,6 +24,7 @@ DEFAULTS: dict[str, Any] = {
     "groq_model": "llama-3.3-70b-versatile",
     "wavespeed_api_key": "",
     "pexels_api_key": "",
+    "pixabay_api_key": "",
     "google_client_id": "",
     "google_client_secret": "",
     "public_base_url": "",
@@ -56,6 +57,7 @@ def load_settings() -> dict[str, Any]:
         "groq_api_key": "GROQ_API_KEY",
         "wavespeed_api_key": "WAVESPEED_API_KEY",
         "pexels_api_key": "PEXELS_API_KEY",
+        "pixabay_api_key": "PIXABAY_API_KEY",
     }
     for field, env_name in env_map.items():
         if not merged.get(field) and os.environ.get(env_name):
@@ -85,6 +87,7 @@ def public_settings() -> dict[str, Any]:
         "groq_api_key",
         "wavespeed_api_key",
         "pexels_api_key",
+        "pixabay_api_key",
         "google_client_secret",
     ):
         if masked.get(key):
@@ -95,6 +98,7 @@ def public_settings() -> dict[str, Any]:
     masked["has_groq"] = bool(data.get("groq_api_key"))
     masked["has_wavespeed"] = bool(data.get("wavespeed_api_key"))
     masked["has_pexels"] = bool(data.get("pexels_api_key"))
+    masked["has_pixabay"] = bool(data.get("pixabay_api_key"))
     masked["has_google_oauth"] = bool(data.get("google_client_id") and data.get("google_client_secret"))
     masked["groq_does"] = [
         "Writes the spoken script and scene list (very fast)",
@@ -112,6 +116,11 @@ def public_settings() -> dict[str, Any]:
         "Pulls real stock video for each scene",
         "Competes with WaveSpeed motion; we keep the strongest clip",
         "Backup still photos if AI images fail",
+    ]
+    masked["pixabay_does"] = [
+        "Searches royalty-free videos",
+        "Searches royalty-free photos",
+        "Fills scenes if Pexels misses, then we keep the strongest clip",
     ]
     masked["gemini_does"] = [
         "Backup stills if WaveSpeed fails",

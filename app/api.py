@@ -19,6 +19,7 @@ from app.store import (
     latest_job,
     list_projects,
     media_url,
+    project_job_busy,
     save_project,
 )
 
@@ -60,6 +61,11 @@ def _require(project_id: str) -> dict[str, Any]:
     if not project:
         raise HTTPException(404, "Project not found")
     return project
+
+
+def _ensure_idle(project_id: str) -> None:
+    if project_job_busy(project_id):
+        raise HTTPException(409, "This cut is already running. Wait for the current job to finish.")
 
 
 def _launch(background: BackgroundTasks, coro) -> None:
@@ -169,6 +175,7 @@ async def edit_script(project_id: str, payload: dict[str, Any]) -> dict[str, Any
 @router.post("/api/projects/{project_id}/auto")
 async def auto_project(project_id: str, background: BackgroundTasks, payload: dict[str, Any] | None = None) -> dict[str, Any]:
     _require(project_id)
+    _ensure_idle(project_id)
     job = create_job("auto", project_id)
     publish = bool((payload or {}).get("publish"))
     _launch(background, run_auto(project_id, job["id"], publish=publish))
@@ -185,6 +192,7 @@ async def run_project_step(
     if step not in {"research", "script", "voice", "visuals", "thumbnail", "render", "publish"}:
         raise HTTPException(404, "Unknown step")
     _require(project_id)
+    _ensure_idle(project_id)
     job = create_job(step, project_id)
     _launch(background, run_step(project_id, step, job["id"], **(payload or {})))
     return {"job": job}

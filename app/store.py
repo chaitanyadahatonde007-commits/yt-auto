@@ -279,6 +279,23 @@ def get_job(job_id: str) -> dict[str, Any] | None:
     return dict(row)
 
 
+def project_job_busy(project_id: str) -> bool:
+    job = latest_job(project_id)
+    if not job or job.get("status") not in {"queued", "running"}:
+        return False
+    try:
+        updated = datetime.fromisoformat(str(job.get("updated_at") or "").replace("Z", "+00:00"))
+        if updated.tzinfo is None:
+            updated = updated.replace(tzinfo=timezone.utc)
+        age = (datetime.now(timezone.utc) - updated).total_seconds()
+    except Exception:
+        age = 0
+    if age > 2400:
+        update_job(job["id"], status="error", error="Timed out", message="Job took too long and was stopped")
+        return False
+    return True
+
+
 def latest_job(project_id: str) -> dict[str, Any] | None:
     with connect() as conn:
         row = conn.execute(

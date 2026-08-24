@@ -134,6 +134,12 @@ async def render_thumbnails(project: dict[str, Any]) -> dict[str, Any]:
         if await fetch_still(prompt, raw, aspect="16:9", hint=topic, index=0) and raw.exists():
             photo = Image.open(raw)
             source = "pexels"
+        else:
+            from app.services.pixabay import fetch_still as pixabay_still
+
+            if await pixabay_still(prompt, raw, aspect="16:9", hint=topic, index=0) and raw.exists():
+                photo = Image.open(raw)
+                source = "pixabay"
     variants = []
     for i, name in enumerate(("thumb_a.jpg", "thumb_b.jpg", "thumb_c.jpg")):
         base = photo if i == 0 and photo is not None else None

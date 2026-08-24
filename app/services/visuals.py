@@ -4,6 +4,7 @@ import hashlib
 import math
 import random
 from pathlib import Path
+from collections.abc import Callable
 from typing import Any
 
 from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageFont, ImageOps
@@ -207,10 +208,21 @@ def render_scene_frame(
     return rgb
 
 
-async def render_visuals(project: dict[str, Any], scenes: list[dict[str, Any]]) -> dict[str, Any]:
+async def render_visuals(
+    project: dict[str, Any],
+    scenes: list[dict[str, Any]],
+    progress: Callable[[int, int, str], None] | None = None,
+) -> dict[str, Any]:
     from app.services.gemini_images import generate_still, last_image_error, visual_prompt_for
-    from app.services.pexels import fetch_still, fetch_video, last_error as pexels_error
-    from app.services.wavespeed import generate_video_i2v, generate_video_t2v, last_error as ws_error, pick_best_clip
+    from app.services.pexels import fetch_still as pexels_still, fetch_video as pexels_video, last_error as pexels_error
+    from app.services.pixabay import fetch_still as pixabay_still, fetch_video as pixabay_video, last_error as pixabay_error
+    from app.services.wavespeed import (
+        generate_video_i2v,
+        generate_video_t2v,
+        last_error as ws_error,
+        pick_best_clip,
+        video_blocked,
+    )
 
     fmt = project.get("format") or "long"
     size = (1080, 1920) if fmt == "short" else (1920, 1080)
@@ -223,11 +235,17 @@ async def render_visuals(project: dict[str, Any], scenes: list[dict[str, Any]]) 
     outputs = []
     painted_n = 0
     pexels_stills = 0
+    pixabay_stills = 0
     pexels_clips = 0
+    pixabay_clips = 0
     motion_n = 0
     last_err = None
     used_pexels: set[int] = set()
+    used_pixabay: set[int] = set()
+    total = max(1, len(scenes))
     for i, scene in enumerate(scenes):
+        if progress:
+            progress(i, total, f"Scene {i + 1}/{total}: stills and motion")
         sid = scene.get("id") or f"sc{i+1:02d}"
         prompt = visual_prompt_for(scene, project)
         hint = scene.get("on_screen") or project.get("topic") or ""
@@ -240,12 +258,16 @@ async def render_visuals(project: dict[str, Any], scenes: list[dict[str, Any]]) 
                 photo = Image.open(raw)
                 source = "ai"
                 painted_n += 1
-            elif await fetch_still(prompt, raw, aspect=aspect, hint=hint, index=i) and raw.exists():
+            elif await pexels_still(prompt, raw, aspect=aspect, hint=hint, index=i) and raw.exists():
                 photo = Image.open(raw)
                 source = "pexels"
                 pexels_stills += 1
+            elif await pixabay_still(prompt, raw, aspect=aspect, hint=hint, index=i) and raw.exists():
+                photo = Image.open(raw)
+                source = "pixabay"
+                pixabay_stills += 1
             else:
-                last_err = last_image_error() or pexels_error()
+                last_err = last_image_error() or pexels_error() or pixabay_error()
         frame = render_scene_frame(project, scene, i, len(scenes), size, photo=photo)
         rel = f"scenes/{sid}.jpg"
         dest = root / rel
@@ -253,20 +275,29 @@ async def render_visuals(project: dict[str, Any], scenes: list[dict[str, Any]]) 
 
         clip_rel = None
         clip_kind = None
-        if i < 6:
+        if i < 8:
             candidates: list[tuple[str, Path]] = []
             still_src = raw if raw.exists() else dest
             pex = motion_dir / f"{sid}_pexels.mp4"
+            pix = motion_dir / f"{sid}_pixabay.mp4"
             i2v = motion_dir / f"{sid}_i2v.mp4"
             t2v = motion_dir / f"{sid}_t2v.mp4"
             dur = max(4, min(8, int(round(float(scene.get("duration") or 5)))))
-            if await fetch_video(prompt, pex, aspect=aspect, hint=hint, used=used_pexels, index=i):
+            if await pexels_video(prompt, pex, aspect=aspect, hint=hint, used=used_pexels, index=i):
                 candidates.append(("pexels", pex))
                 pexels_clips += 1
-            if await generate_video_i2v(prompt, still_src, i2v, duration=dur):
-                candidates.append(("i2v", i2v))
-            if await generate_video_t2v(prompt, t2v, aspect=aspect, duration=dur):
-                candidates.append(("t2v", t2v))
+            if await pixabay_video(prompt, pix, aspect=aspect, hint=hint, used=used_pixabay, index=i):
+                candidates.append(("pixabay", pix))
+                pixabay_clips += 1
+            # AI motion only for the first two scenes, or if stock found nothing.
+            want_ai = (i < 2 or not candidates) and not video_blocked()
+            if want_ai:
+                if progress:
+                    progress(i, total, f"Scene {i + 1}/{total}: trying WaveSpeed motion")
+                if await generate_video_i2v(prompt, still_src, i2v, duration=dur):
+                    candidates.append(("i2v", i2v))
+                if not candidates and await generate_video_t2v(prompt, t2v, aspect=aspect, duration=dur):
+                    candidates.append(("t2v", t2v))
             winner = await pick_best_clip(candidates)
             if winner:
                 clip_kind, clip_path = winner
@@ -275,7 +306,7 @@ async def render_visuals(project: dict[str, Any], scenes: list[dict[str, Any]]) 
                 clip_rel = f"motion/{sid}_best.mp4"
                 motion_n += 1
             elif not last_err:
-                last_err = ws_error() or pexels_error()
+                last_err = ws_error() or pexels_error() or pixabay_error()
 
         outputs.append(
             {
@@ -297,7 +328,9 @@ async def render_visuals(project: dict[str, Any], scenes: list[dict[str, Any]]) 
         "scenes": outputs,
         "gemini_images": painted_n,
         "pexels_stills": pexels_stills,
+        "pixabay_stills": pixabay_stills,
         "pexels_clips": pexels_clips,
+        "pixabay_clips": pixabay_clips,
         "motion_clips": motion_n,
         "gemini_error": last_err,
     }

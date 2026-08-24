@@ -392,7 +392,7 @@ function stepHtml(p, step) {
     const scenes = p.visuals?.scenes || [];
     return `
       <label class="field"><span>Mood</span>${fieldSelect("visual_mood", MOODS.map((m) => [m, m]), p.visual_mood)}</label>
-      <p class="notice">${p.visuals ? `${p.visuals.gemini_images || 0} AI stills · ${p.visuals.pexels_stills || 0} Pexels stills · ${p.visuals.motion_clips || 0} motion clips (best of Pexels/I2V/T2V)${p.visuals.gemini_error ? " · " + esc(p.visuals.gemini_error) : ""}` : "Pexels pulls real stock video. WaveSpeed paints stills and AI motion. We keep the strongest clip per scene."}</p>
+      <p class="notice">${p.visuals ? `${p.visuals.gemini_images || 0} AI stills · ${(p.visuals.pexels_stills || 0) + (p.visuals.pixabay_stills || 0)} stock stills · ${p.visuals.motion_clips || 0} motion clips (stock first, then AI)${p.visuals.gemini_error ? " · " + esc(p.visuals.gemini_error) : ""}` : "Pexels + Pixabay pull real stock video first. WaveSpeed adds a short AI take on the first scenes. We keep the strongest clip."}</p>
       <div class="scene-strip">${scenes.map((s) => `<img src="${s.url}" alt="${esc(s.on_screen || "")}" title="${esc(s.source || "")}" />`).join("")}</div>
       <button class="btn primary" id="run-step" style="margin-top:14px">Design frames</button>
     `;
@@ -421,14 +421,14 @@ function stepHtml(p, step) {
 }
 
 async function watchJob(id, onTick) {
-  for (let i = 0; i < 900; i++) {
+  for (let i = 0; i < 3600; i++) {
     const pack = await api(`/api/jobs/${id}`);
     onTick(pack);
     if (pack.job.status === "done" || pack.job.status === "error") {
       if (pack.job.status === "error") throw new Error(pack.job.error || pack.job.message || "Job failed");
       return pack;
     }
-    await new Promise((r) => setTimeout(r, 900));
+    await new Promise((r) => setTimeout(r, 1000));
   }
   throw new Error("Timed out waiting for the studio job");
 }
@@ -606,6 +606,15 @@ async function renderSettings() {
         Stays in local data/settings.json. Never committed.
       </div>
       <label class="field"><span>Pexels API key</span><input name="pexels_api_key" type="password" value="${esc(val("pexels_api_key"))}" placeholder="paste Pexels key" /></label>
+      <h2 class="section">Pixabay key — more stock video + photos</h2>
+      <div class="notice">
+        ${settings.has_pixabay ? "Pixabay is connected." : "From pixabay.com/api/docs. Photos and videos."}
+        <ul>
+          ${(settings.pixabay_does || ["Searches videos", "Searches photos", "Fills scenes Pexels misses"]).map((item) => `<li>${esc(item)}</li>`).join("")}
+        </ul>
+        Stays in local data/settings.json. Never committed.
+      </div>
+      <label class="field"><span>Pixabay API key</span><input name="pixabay_api_key" type="password" value="${esc(val("pixabay_api_key"))}" placeholder="paste Pixabay key" /></label>
       <h2 class="section">Gemini key — backup pictures</h2>
       <div class="notice">
         ${settings.has_gemini ? "Gemini is connected." : "From Google AI Studio. AIza or AQ. keys."}

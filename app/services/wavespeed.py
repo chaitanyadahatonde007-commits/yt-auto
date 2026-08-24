@@ -12,22 +12,22 @@ from app.config import load_settings
 from app.paths import ffmpeg_exe
 
 LAST_ERROR: str | None = None
-IMAGE_MODELS = (
-    "wavespeed-ai/flux-schnell",
-    "wavespeed-ai/flux-dev",
-)
-I2V_MODELS = (
-    "alibaba/wan-2.6/image-to-video",
-    "bytedance/seedance-v1.5-pro/image-to-video",
-)
-T2V_MODELS = (
-    "alibaba/wan-2.6/text-to-video",
-    "openai/sora-2/text-to-video",
-)
+VIDEO_BLOCKED = False
+IMAGE_MODELS = ("wavespeed-ai/flux-schnell",)
+I2V_MODELS = ("alibaba/wan-2.6/image-to-video",)
+T2V_MODELS = ("alibaba/wan-2.6/text-to-video",)
+
+
+class WaveSpeedFatal(RuntimeError):
+    """Auth / credits / plan — do not keep retrying models."""
 
 
 def last_error() -> str | None:
     return LAST_ERROR
+
+
+def video_blocked() -> bool:
+    return VIDEO_BLOCKED
 
 
 def _headers() -> dict[str, str]:
@@ -65,6 +65,8 @@ async def _run_model(client: httpx.AsyncClient, model: str, payload: dict[str, A
         headers=_headers(),
         json=payload,
     )
+    if submit.status_code in {401, 402, 403}:
+        raise WaveSpeedFatal(f"{model} {submit.status_code}: {submit.text[:160]}")
     if submit.status_code >= 400:
         raise RuntimeError(f"{model} {submit.status_code}: {submit.text[:180]}")
     task = submit.json().get("data") or submit.json()
@@ -101,7 +103,7 @@ async def generate_still(prompt: str, dest: Path, aspect: str = "16:9") -> bool:
     )
     errors: list[str] = []
     try:
-        async with httpx.AsyncClient(timeout=120.0, follow_redirects=True) as client:
+        async with httpx.AsyncClient(timeout=90.0, follow_redirects=True) as client:
             for model in IMAGE_MODELS:
                 try:
                     await _run_model(
@@ -111,6 +113,9 @@ async def generate_still(prompt: str, dest: Path, aspect: str = "16:9") -> bool:
                         dest,
                     )
                     return True
+                except WaveSpeedFatal as exc:
+                    LAST_ERROR = str(exc)
+                    return False
                 except Exception as exc:
                     errors.append(str(exc)[:160])
     except Exception as exc:
@@ -140,8 +145,8 @@ async def upload_image(path: Path) -> str | None:
 
 
 async def generate_video_i2v(prompt: str, image_path: Path, dest: Path, duration: int = 5) -> bool:
-    global LAST_ERROR
-    if not _key():
+    global LAST_ERROR, VIDEO_BLOCKED
+    if not _key() or VIDEO_BLOCKED:
         return False
     url = await upload_image(image_path)
     if not url:
@@ -154,11 +159,15 @@ async def generate_video_i2v(prompt: str, image_path: Path, dest: Path, duration
         "duration": max(4, min(int(duration), 8)),
     }
     try:
-        async with httpx.AsyncClient(timeout=180.0, follow_redirects=True) as client:
+        async with httpx.AsyncClient(timeout=90.0, follow_redirects=True) as client:
             for model in I2V_MODELS:
                 try:
                     await _run_model(client, model, payload, dest)
                     return True
+                except WaveSpeedFatal as exc:
+                    VIDEO_BLOCKED = True
+                    LAST_ERROR = f"WaveSpeed I2V blocked: {exc}"
+                    return False
                 except Exception as exc:
                     errors.append(str(exc)[:160])
     except Exception as exc:
@@ -169,8 +178,8 @@ async def generate_video_i2v(prompt: str, image_path: Path, dest: Path, duration
 
 
 async def generate_video_t2v(prompt: str, dest: Path, aspect: str = "16:9", duration: int = 5) -> bool:
-    global LAST_ERROR
-    if not _key():
+    global LAST_ERROR, VIDEO_BLOCKED
+    if not _key() or VIDEO_BLOCKED:
         return False
     payload = {
         "prompt": f"{prompt.strip()}. Cinematic motion, photoreal, no text, no letters.",
@@ -179,11 +188,15 @@ async def generate_video_t2v(prompt: str, dest: Path, aspect: str = "16:9", dura
     }
     errors: list[str] = []
     try:
-        async with httpx.AsyncClient(timeout=180.0, follow_redirects=True) as client:
+        async with httpx.AsyncClient(timeout=90.0, follow_redirects=True) as client:
             for model in T2V_MODELS:
                 try:
                     await _run_model(client, model, payload, dest)
                     return True
+                except WaveSpeedFatal as exc:
+                    VIDEO_BLOCKED = True
+                    LAST_ERROR = f"WaveSpeed T2V blocked: {exc}"
+                    return False
                 except Exception as exc:
                     errors.append(str(exc)[:160])
     except Exception as exc:
@@ -232,7 +245,7 @@ async def pick_best_clip(candidates: list[tuple[str, Path]]) -> tuple[str, Path]
         score = await motion_score(path)
         if kind == "i2v":
             score += 8
-        elif kind == "pexels":
+        elif kind in {"pexels", "pixabay"}:
             score += 6
         elif kind == "t2v":
             score += 5

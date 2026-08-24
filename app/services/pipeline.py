@@ -57,11 +57,17 @@ async def step_voice(project: dict[str, Any]) -> dict[str, Any]:
     return save_project(project)
 
 
-async def step_visuals(project: dict[str, Any]) -> dict[str, Any]:
+async def step_visuals(project: dict[str, Any], emit: Progress | None = None) -> dict[str, Any]:
     script = project.get("script")
     if not script:
         raise RuntimeError("Write a script first")
-    project["visuals"] = await render_visuals(project, script["scenes"])
+
+    def on_prog(done: int, total: int, message: str) -> None:
+        if emit:
+            frac = 0.52 + 0.12 * (done / max(total, 1))
+            emit(frac, "visuals", message)
+
+    project["visuals"] = await render_visuals(project, script["scenes"], progress=on_prog)
     usage = dict(project.get("gemini_usage") or {})
     usage["scene_images"] = (project["visuals"] or {}).get("gemini_images") or 0
     usage["motion_clips"] = (project["visuals"] or {}).get("motion_clips") or 0
@@ -82,11 +88,17 @@ async def step_thumbnail(project: dict[str, Any]) -> dict[str, Any]:
     return save_project(project)
 
 
-async def step_render(project: dict[str, Any]) -> dict[str, Any]:
+async def step_render(project: dict[str, Any], emit: Progress | None = None) -> dict[str, Any]:
     if not project.get("visuals"):
-        project = await step_visuals(project)
+        if emit:
+            emit(0.2, "visuals", "Designing frames before the master render")
+        project = await step_visuals(project, emit=emit)
     if not project.get("voiceover"):
+        if emit:
+            emit(0.45, "voice", "Recording voice before the master render")
         project = await step_voice(project)
+    if emit:
+        emit(0.7, "render", "Assembling picture, captions, and mix")
     project["render"] = await compose_video(project)
     project["status"] = "rendered"
     return save_project(project)
@@ -113,8 +125,8 @@ async def run_auto(project_id: str, job_id: str | None = None, publish: bool = F
         project = await step_script(project)
         emit(0.34, "voice", "Recording the studio voice")
         project = await step_voice(project)
-        emit(0.52, "visuals", "WaveSpeed and Pexels are shooting motion; we keep the best clip")
-        project = await step_visuals(project)
+        emit(0.52, "visuals", "Pulling stock motion, then a short AI take if needed")
+        project = await step_visuals(project, emit=emit)
         emit(0.66, "thumbnail", "Picking the strongest thumbnail")
         project = await step_thumbnail(project)
         emit(0.74, "render", "Assembling picture, captions, and mix")
@@ -146,11 +158,11 @@ async def run_step(project_id: str, step: str, job_id: str | None = None, **kwar
         elif step == "voice":
             project = await step_voice(project)
         elif step == "visuals":
-            project = await step_visuals(project)
+            project = await step_visuals(project, emit=emit)
         elif step == "thumbnail":
             project = await step_thumbnail(project)
         elif step == "render":
-            project = await step_render(project)
+            project = await step_render(project, emit=emit)
         elif step == "publish":
             project = await step_publish(
                 project,

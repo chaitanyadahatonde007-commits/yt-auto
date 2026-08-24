@@ -79,6 +79,7 @@ In **Settings**, paste one of:
   It is **not** used for voice, FFmpeg render, or YouTube upload. The key stays in local `data/settings.json` and is never committed.
 
 - Pexels API key from [pexels.com/api](https://www.pexels.com/api/). Paste it in **Settings**. Used for real stock video per scene (and backup stills). The key stays in local `data/settings.json` and is never committed.
+- Pixabay API key from [pixabay.com/api/docs](https://pixabay.com/api/docs/). Photos and videos. Same local-only storage.
 
 The writer stays honest: it will not invent statistics. Without a key it still produces a structured host-read from the briefing.
 
