@@ -239,6 +239,49 @@ async def youtube_disconnect() -> dict[str, Any]:
     return {"ok": True}
 
 
+@router.get("/api/trends")
+async def trends() -> dict[str, Any]:
+    from app.services.trends import discover_trends
+
+    items = await discover_trends()
+    return {"trends": items}
+
+
+@router.get("/api/autopilot")
+async def autopilot_status() -> dict[str, Any]:
+    from app.services.autopilot import status_payload
+
+    return status_payload()
+
+
+@router.put("/api/autopilot")
+async def autopilot_update(payload: dict[str, Any]) -> dict[str, Any]:
+    from app.services.autopilot import status_payload
+
+    allowed = {
+        "autopilot_enabled",
+        "autopilot_interval_hours",
+        "autopilot_daily_cap",
+        "autopilot_format",
+        "autopilot_style",
+        "autopilot_region",
+        "autopilot_publish",
+    }
+    save_settings({k: payload[k] for k in allowed if k in payload})
+    return status_payload()
+
+
+@router.post("/api/autopilot/run-now")
+async def autopilot_run_now(background: BackgroundTasks) -> dict[str, Any]:
+    from app.services.autopilot import run_cycle, status_payload
+    from app.store import autopilot_busy
+
+    if autopilot_busy():
+        raise HTTPException(409, "Autopilot is already making a video")
+    _launch(background, run_cycle(force=True))
+    return {"ok": True, "autopilot": status_payload()}
+
+
 @router.get("/media/{project_id}/{rest:path}")
 async def media(project_id: str, rest: str) -> FileResponse:
     folder = project_dir(project_id).resolve()

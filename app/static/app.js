@@ -99,6 +99,7 @@ function render() {
   setNav();
   const r = route();
   if (r.name === "new") return renderNew();
+  if (r.name === "autopilot") return renderAutopilot();
   if (r.name === "library") return renderLibrary();
   if (r.name === "channel") return renderChannel();
   if (r.name === "settings") return renderSettings();

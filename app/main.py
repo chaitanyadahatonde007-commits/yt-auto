@@ -4,6 +4,8 @@ import os
 
 os.environ.setdefault("OAUTHLIB_RELAX_TOKEN_SCOPE", "1")
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
@@ -14,10 +16,24 @@ from app.api import router
 from app.paths import ASSETS_DIR, STATIC_DIR, ensure_dirs
 from app.store import init_db
 
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    import asyncio
+
+    from app.services.autopilot import scheduler_loop
+
+    task = asyncio.create_task(scheduler_loop())
+    try:
+        yield
+    finally:
+        task.cancel()
+
+
 ensure_dirs()
 init_db()
 
-app = FastAPI(title="ChannelForge", version=__version__, docs_url="/api/docs")
+app = FastAPI(title="ChannelForge", version=__version__, docs_url="/api/docs", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],

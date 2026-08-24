@@ -69,6 +69,7 @@ In **Settings**, paste one of:
 
 - OpenAI API key (`gpt-4o-mini` by default)
 - Anthropic API key
+- Groq API key from [console.groq.com](https://console.groq.com/keys) (`gsk_…`). Used to write the script fast, plan scene picture prompts, and optionally speak with PlayAI voices. Groq cannot generate images.
 - Gemini API key from [Google AI Studio](https://aistudio.google.com/apikey) (`AIza…` or `AQ.…`). Paste it in **Settings**. That key is used to:
   1. Write the spoken script and scene list
   2. Plan a unique picture for each line
@@ -78,6 +79,18 @@ In **Settings**, paste one of:
   It is **not** used for voice, FFmpeg render, or YouTube upload. The key stays in local `data/settings.json` and is never committed.
 
 The writer stays honest: it will not invent statistics. Without a key it still produces a structured host-read from the briefing.
+
+## Autopilot
+
+Open **Autopilot** in the studio.
+
+1. Turn **Start autopilot** on
+2. Leave `py -3 run.py` running
+3. ChannelForge reads YouTube / Google Trends / Reddit / Wikipedia, picks a famous topic, generates the video, and either schedules it on YouTube (9am / 1pm / 7pm IST) or only renders it
+
+**Make one now** does a single unattended cut immediately.
+
+The PC must stay on and the studio window must stay open for the schedule to fire.
 
 ## Connect YouTube
 

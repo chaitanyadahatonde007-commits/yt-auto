@@ -27,6 +27,13 @@ DEFAULTS: dict[str, Any] = {
     "public_base_url": "",
     "youtube_category_id": "27",
     "made_for_kids": False,
+    "autopilot_enabled": False,
+    "autopilot_interval_hours": 6,
+    "autopilot_daily_cap": 3,
+    "autopilot_format": "short",
+    "autopilot_style": "explainer",
+    "autopilot_region": "IN",
+    "autopilot_publish": "schedule",
 }
 
 
@@ -71,6 +78,7 @@ def public_settings() -> dict[str, Any]:
         "openai_api_key",
         "anthropic_api_key",
         "gemini_api_key",
+        "groq_api_key",
         "google_client_secret",
     ):
         if masked.get(key):
@@ -78,12 +86,17 @@ def public_settings() -> dict[str, Any]:
     masked["has_openai"] = bool(data.get("openai_api_key"))
     masked["has_anthropic"] = bool(data.get("anthropic_api_key"))
     masked["has_gemini"] = bool(data.get("gemini_api_key"))
+    masked["has_groq"] = bool(data.get("groq_api_key"))
     masked["has_google_oauth"] = bool(data.get("google_client_id") and data.get("google_client_secret"))
+    masked["groq_does"] = [
+        "Writes the spoken script and scene list (very fast)",
+        "Plans a unique picture prompt for every scene",
+        "Optional PlayAI studio voice",
+    ]
     masked["gemini_does"] = [
-        "Writes the spoken script and scene list",
-        "Plans a unique picture for every scene from the line being said",
-        "Generates those scene stills (Gemini Flash Image)",
+        "Generates the actual scene stills (pictures)",
         "Paints a thumbnail photograph from the title",
+        "Backup script writer if Groq is down",
     ]
     return masked
 

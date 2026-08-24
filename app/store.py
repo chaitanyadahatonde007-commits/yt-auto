@@ -62,6 +62,21 @@ def init_db() -> None:
             )
             """
         )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS autopilot (
+                id TEXT PRIMARY KEY,
+                topic TEXT NOT NULL,
+                source TEXT,
+                status TEXT NOT NULL,
+                project_id TEXT,
+                scheduled_for TEXT,
+                message TEXT,
+                error TEXT,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
         conn.commit()
 
 
@@ -277,3 +292,115 @@ def media_url(project_id: str, rel: str | Path | None) -> str | None:
     if not rel:
         return None
     return f"/media/{project_id}/{Path(rel).as_posix().lstrip('/')}"
+
+
+def add_autopilot_run(payload: dict[str, Any]) -> dict[str, Any]:
+    row = {
+        "id": new_id("ap"),
+        "topic": payload.get("topic") or "",
+        "source": payload.get("source") or "",
+        "status": payload.get("status") or "queued",
+        "project_id": payload.get("project_id"),
+        "scheduled_for": payload.get("scheduled_for"),
+        "message": payload.get("message") or "",
+        "error": payload.get("error"),
+        "created_at": utcnow(),
+    }
+    with _LOCK, connect() as conn:
+        conn.execute(
+            """
+            INSERT INTO autopilot (id, topic, source, status, project_id, scheduled_for, message, error, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                row["id"],
+                row["topic"],
+                row["source"],
+                row["status"],
+                row["project_id"],
+                row["scheduled_for"],
+                row["message"],
+                row["error"],
+                row["created_at"],
+            ),
+        )
+        conn.commit()
+    return row
+
+
+def update_autopilot_run(run_id: str, **fields: Any) -> dict[str, Any] | None:
+    run = get_autopilot_run(run_id)
+    if not run:
+        return None
+    run.update(fields)
+    with _LOCK, connect() as conn:
+        conn.execute(
+            """
+            UPDATE autopilot
+            SET topic = ?, source = ?, status = ?, project_id = ?, scheduled_for = ?, message = ?, error = ?
+            WHERE id = ?
+            """,
+            (
+                run.get("topic"),
+                run.get("source"),
+                run.get("status"),
+                run.get("project_id"),
+                run.get("scheduled_for"),
+                run.get("message"),
+                run.get("error"),
+                run_id,
+            ),
+        )
+        conn.commit()
+    return run
+
+
+def get_autopilot_run(run_id: str) -> dict[str, Any] | None:
+    with connect() as conn:
+        row = conn.execute("SELECT * FROM autopilot WHERE id = ?", (run_id,)).fetchone()
+    return dict(row) if row else None
+
+
+def list_autopilot_runs(limit: int = 30) -> list[dict[str, Any]]:
+    with connect() as conn:
+        rows = conn.execute(
+            "SELECT * FROM autopilot ORDER BY created_at DESC LIMIT ?",
+            (limit,),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def autopilot_used_topics() -> set[str]:
+    with connect() as conn:
+        rows = conn.execute("SELECT topic FROM autopilot").fetchall()
+    topics = { (r["topic"] or "").strip().lower() for r in rows }
+    with connect() as conn:
+        rows = conn.execute("SELECT topic FROM projects").fetchall()
+    topics.update((r["topic"] or "").strip().lower() for r in rows)
+    return {t for t in topics if t}
+
+
+def autopilot_count_today() -> int:
+    day = utcnow()[:10]
+    with connect() as conn:
+        row = conn.execute(
+            "SELECT COUNT(*) AS n FROM autopilot WHERE created_at LIKE ? AND status NOT IN ('error','skipped')",
+            (f"{day}%",),
+        ).fetchone()
+    return int(row["n"] if row else 0)
+
+
+def last_successful_autopilot() -> dict[str, Any] | None:
+    with connect() as conn:
+        row = conn.execute(
+            "SELECT * FROM autopilot WHERE status IN ('ready','published','scheduled') ORDER BY created_at DESC LIMIT 1"
+        ).fetchone()
+    return dict(row) if row else None
+
+
+def autopilot_busy() -> bool:
+    with connect() as conn:
+        row = conn.execute(
+            "SELECT COUNT(*) AS n FROM autopilot WHERE status IN ('queued','running')"
+        ).fetchone()
+    return int(row["n"] if row else 0) > 0

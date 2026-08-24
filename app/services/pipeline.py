@@ -91,12 +91,12 @@ async def step_render(project: dict[str, Any]) -> dict[str, Any]:
     return save_project(project)
 
 
-async def step_publish(project: dict[str, Any], privacy: str | None = None) -> dict[str, Any]:
+async def step_publish(project: dict[str, Any], privacy: str | None = None, publish_at: str | None = None) -> dict[str, Any]:
     if not project.get("render"):
         raise RuntimeError("Render the video first")
-    result = upload_video(project, privacy=privacy)
+    result = upload_video(project, privacy=privacy, publish_at=publish_at)
     project["youtube"] = result
-    project["status"] = "published"
+    project["status"] = "scheduled" if publish_at else "published"
     return save_project(project)
 
 
@@ -151,7 +151,11 @@ async def run_step(project_id: str, step: str, job_id: str | None = None, **kwar
         elif step == "render":
             project = await step_render(project)
         elif step == "publish":
-            project = await step_publish(project, privacy=kwargs.get("privacy"))
+            project = await step_publish(
+                project,
+                privacy=kwargs.get("privacy"),
+                publish_at=kwargs.get("publish_at"),
+            )
         else:
             raise RuntimeError(f"Unknown step {step}")
         emit(1.0, step, f"{step} complete")

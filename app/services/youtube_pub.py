@@ -122,7 +122,7 @@ def disconnect() -> None:
         YOUTUBE_TOKEN_PATH.unlink()
 
 
-def upload_video(project: dict[str, Any], privacy: str | None = None) -> dict[str, Any]:
+def upload_video(project: dict[str, Any], privacy: str | None = None, publish_at: str | None = None) -> dict[str, Any]:
     creds = load_credentials()
     if not creds:
         raise RuntimeError("YouTube is not connected. Open Channel and finish Google sign-in.")
@@ -155,10 +155,13 @@ def upload_video(project: dict[str, Any], privacy: str | None = None) -> dict[st
             "categoryId": settings.get("youtube_category_id") or "27",
         },
         "status": {
-            "privacyStatus": privacy,
+            "privacyStatus": "private" if publish_at else privacy,
             "selfDeclaredMadeForKids": bool(settings.get("made_for_kids")),
         },
     }
+    if publish_at:
+        body["status"]["publishAt"] = publish_at
+        body["status"]["privacyStatus"] = "private"
     media = MediaFileUpload(str(video_path), mimetype="video/mp4", resumable=True, chunksize=8 * 1024 * 1024)
     request = youtube.videos().insert(part="snippet,status", body=body, media_body=media)
     response = None
@@ -181,6 +184,7 @@ def upload_video(project: dict[str, Any], privacy: str | None = None) -> dict[st
     return {
         "video_id": video_id,
         "url": url,
-        "privacy": privacy,
+        "privacy": "private" if publish_at else privacy,
+        "publish_at": publish_at,
         "title": body["snippet"]["title"],
     }
