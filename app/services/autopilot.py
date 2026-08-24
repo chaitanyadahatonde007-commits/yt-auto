@@ -3,11 +3,17 @@ from __future__ import annotations
 import asyncio
 from datetime import datetime, timedelta, timezone
 from typing import Any
-from zoneinfo import ZoneInfo
+
+try:
+    from zoneinfo import ZoneInfo
+
+    IST: timezone = ZoneInfo("Asia/Kolkata")  # type: ignore[assignment]
+except Exception:
+    IST = timezone(timedelta(hours=5, minutes=30))
 
 from app.config import load_settings
 from app.services.pipeline import run_auto
-from app.services.trends import discover_trends, pick_topic
+from app.services.trends import pick_topic
 from app.services.youtube_pub import connected, upload_video
 from app.store import (
     add_autopilot_run,
