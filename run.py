@@ -78,6 +78,7 @@ def main() -> None:
         print(f"Setup failed ({exc.returncode}).")
         raise SystemExit(exc.returncode) from exc
 
+    os.environ.setdefault("OAUTHLIB_RELAX_TOKEN_SCOPE", "1")
     host = os.environ.get("YT_AUTO_HOST", "127.0.0.1")
     port = int(os.environ.get("YT_AUTO_PORT", "8000"))
     print()

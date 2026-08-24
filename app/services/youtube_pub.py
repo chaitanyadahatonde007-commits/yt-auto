@@ -1,9 +1,14 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlencode
+
+# This OAuth client was already used with extra YouTube scopes.
+# Google then returns those extras and oauthlib throws "Scope has changed".
+os.environ["OAUTHLIB_RELAX_TOKEN_SCOPE"] = "1"
 
 from app.config import load_settings
 from app.paths import YOUTUBE_TOKEN_PATH, project_dir
@@ -11,6 +16,7 @@ from app.paths import YOUTUBE_TOKEN_PATH, project_dir
 SCOPES = [
     "https://www.googleapis.com/auth/youtube.upload",
     "https://www.googleapis.com/auth/youtube.readonly",
+    "https://www.googleapis.com/auth/youtube",
 ]
 
 
@@ -49,7 +55,6 @@ def auth_url(public_base: str | None = None) -> str:
         "scope": " ".join(SCOPES),
         "access_type": "offline",
         "prompt": "consent",
-        "include_granted_scopes": "true",
     }
     return "https://accounts.google.com/o/oauth2/v2/auth?" + urlencode(params)
 
