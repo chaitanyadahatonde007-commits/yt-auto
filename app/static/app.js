@@ -589,7 +589,15 @@ async function renderSettings() {
         Groq cannot generate pictures.
       </div>
       <label class="field"><span>Groq API key</span><input name="groq_api_key" type="password" value="${esc(val("groq_api_key"))}" placeholder="gsk_…" /></label>
-      <h2 class="section">Gemini key — pictures</h2>
+      <h2 class="section">WaveSpeed key (wsk_live_) — pictures</h2>
+      <div class="notice">
+        ${settings.has_wavespeed ? "WaveSpeed is connected." : "From wavespeed.ai. Starts with wsk_live_."}
+        <ul>
+          ${(settings.wavespeed_does || ["Paints scene stills", "Paints the thumbnail"]).map((item) => `<li>${esc(item)}</li>`).join("")}
+        </ul>
+      </div>
+      <label class="field"><span>WaveSpeed API key</span><input name="wavespeed_api_key" type="password" value="${esc(val("wavespeed_api_key"))}" placeholder="wsk_live_…" /></label>
+      <h2 class="section">Gemini key — backup pictures</h2>
       <div class="notice">
         ${settings.has_gemini ? "Gemini is connected." : "From Google AI Studio. AIza or AQ. keys."}
         <ul>
