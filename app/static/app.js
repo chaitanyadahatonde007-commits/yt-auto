@@ -615,6 +615,15 @@ async function renderSettings() {
         Stays in local data/settings.json. Never committed.
       </div>
       <label class="field"><span>Pixabay API key</span><input name="pixabay_api_key" type="password" value="${esc(val("pixabay_api_key"))}" placeholder="paste Pixabay key" /></label>
+      <h2 class="section">NewsAPI key — live headlines</h2>
+      <div class="notice">
+        ${settings.has_newsapi ? "NewsAPI is connected." : "From newsapi.org. 32-character hex key."}
+        <ul>
+          ${(settings.newsapi_does || ["Live headlines for Autopilot", "News facts in research", "Uses your region"]).map((item) => `<li>${esc(item)}</li>`).join("")}
+        </ul>
+        Stays in local data/settings.json. Never committed.
+      </div>
+      <label class="field"><span>NewsAPI key</span><input name="newsapi_api_key" type="password" value="${esc(val("newsapi_api_key"))}" placeholder="paste NewsAPI key" /></label>
       <h2 class="section">Gemini key — backup pictures</h2>
       <div class="notice">
         ${settings.has_gemini ? "Gemini is connected." : "From Google AI Studio. AIza or AQ. keys."}

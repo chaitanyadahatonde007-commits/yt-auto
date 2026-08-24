@@ -176,9 +176,15 @@ async def discover_trends(region: str | None = None) -> list[dict[str, Any]]:
 
 
 async def _gather(region: str) -> list[dict[str, Any]]:
-    yt, trends, reddit, wiki = [], [], [], []
+    yt, trends, reddit, wiki, news = [], [], [], [], []
     try:
         yt = await _youtube_popular(region)
+    except Exception:
+        pass
+    try:
+        from app.services.newsapi import top_headlines
+
+        news = await top_headlines(region)
     except Exception:
         pass
     try:
@@ -193,8 +199,7 @@ async def _gather(region: str) -> list[dict[str, Any]]:
         wiki = await _wikipedia_today()
     except Exception:
         pass
-    # Prefer YouTube + Trends first
-    return yt + trends + wiki + reddit
+    return news + yt + trends + wiki + reddit
 
 
 async def pick_topic(region: str | None = None) -> dict[str, Any]:

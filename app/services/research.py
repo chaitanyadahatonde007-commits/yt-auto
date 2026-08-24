@@ -105,15 +105,42 @@ def notes_research(topic: str, notes: str) -> dict[str, Any] | None:
 async def gather_research(topic: str, notes: str = "") -> dict[str, Any]:
     wiki = await wikipedia_research(topic)
     extra = notes_research(topic, notes)
+    news_facts: list[str] = []
+    try:
+        from app.services.newsapi import search_topic
+
+        for art in await search_topic(topic, limit=6):
+            line = art.get("description") or art.get("title") or ""
+            if line:
+                news_facts.append(line)
+    except Exception:
+        news_facts = []
     if wiki and extra:
-        merged = list(dict.fromkeys(extra["facts"] + wiki["facts"]))
+        merged = list(dict.fromkeys(extra["facts"] + news_facts + wiki["facts"]))
         wiki["facts"] = merged[:16]
         wiki["notes"] = extra["facts"]
+        if news_facts:
+            wiki["source"] = "wikipedia+news"
         return wiki
     if wiki:
+        if news_facts:
+            wiki["facts"] = list(dict.fromkeys(news_facts + wiki["facts"]))[:16]
+            wiki["source"] = "wikipedia+news"
         return wiki
     if extra:
+        if news_facts:
+            extra["facts"] = list(dict.fromkeys(extra["facts"] + news_facts))[:16]
+            extra["source"] = "notes+news"
         return extra
+    if news_facts:
+        return {
+            "source": "newsapi",
+            "title": topic,
+            "url": None,
+            "summary": news_facts[0],
+            "facts": news_facts[:16],
+            "image": None,
+        }
     return {
         "source": "studio",
         "title": topic,

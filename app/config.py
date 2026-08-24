@@ -25,6 +25,7 @@ DEFAULTS: dict[str, Any] = {
     "wavespeed_api_key": "",
     "pexels_api_key": "",
     "pixabay_api_key": "",
+    "newsapi_api_key": "",
     "google_client_id": "",
     "google_client_secret": "",
     "public_base_url": "",
@@ -58,6 +59,7 @@ def load_settings() -> dict[str, Any]:
         "wavespeed_api_key": "WAVESPEED_API_KEY",
         "pexels_api_key": "PEXELS_API_KEY",
         "pixabay_api_key": "PIXABAY_API_KEY",
+        "newsapi_api_key": "NEWSAPI_API_KEY",
     }
     for field, env_name in env_map.items():
         if not merged.get(field) and os.environ.get(env_name):
@@ -88,6 +90,7 @@ def public_settings() -> dict[str, Any]:
         "wavespeed_api_key",
         "pexels_api_key",
         "pixabay_api_key",
+        "newsapi_api_key",
         "google_client_secret",
     ):
         if masked.get(key):
@@ -99,6 +102,7 @@ def public_settings() -> dict[str, Any]:
     masked["has_wavespeed"] = bool(data.get("wavespeed_api_key"))
     masked["has_pexels"] = bool(data.get("pexels_api_key"))
     masked["has_pixabay"] = bool(data.get("pixabay_api_key"))
+    masked["has_newsapi"] = bool(data.get("newsapi_api_key"))
     masked["has_google_oauth"] = bool(data.get("google_client_id") and data.get("google_client_secret"))
     masked["groq_does"] = [
         "Writes the spoken script and scene list (very fast)",

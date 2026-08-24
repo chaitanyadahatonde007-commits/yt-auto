@@ -80,6 +80,7 @@ In **Settings**, paste one of:
 
 - Pexels API key from [pexels.com/api](https://www.pexels.com/api/). Paste it in **Settings**. Used for real stock video per scene (and backup stills). The key stays in local `data/settings.json` and is never committed.
 - Pixabay API key from [pixabay.com/api/docs](https://pixabay.com/api/docs/). Photos and videos. Same local-only storage.
+- NewsAPI key from [newsapi.org](https://newsapi.org/). Live headlines for Autopilot and extra facts in research. Same local-only storage.
 
 The writer stays honest: it will not invent statistics. Without a key it still produces a structured host-read from the briefing.
 
