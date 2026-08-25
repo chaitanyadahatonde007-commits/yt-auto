@@ -303,8 +303,8 @@ async def compose_video(project: dict[str, Any]) -> dict[str, Any]:
             "-i",
             str(bgm),
             "-filter_complex",
-            "[0:a]highpass=f=80,loudnorm=I=-16:TP=-1.5:LRA=11[v];"
-            "[1:a]volume=0.55[b];"
+            "[0:a]highpass=f=90,lowpass=f=11500,equalizer=f=320:t=q:w=1:g=-1.5,equalizer=f=3400:t=q:w=1:g=2.2,loudnorm=I=-16:TP=-1.5:LRA=8[v];"
+            "[1:a]volume=0.32[b];"
             "[v][b]amix=inputs=2:duration=first:dropout_transition=2,alimiter=limit=0.95[a]",
             "-map",
             "[a]",
