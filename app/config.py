@@ -9,11 +9,12 @@ from app.paths import SETTINGS_PATH, ensure_dirs
 
 DEFAULTS: dict[str, Any] = {
     "channel_name": "",
-    "default_privacy": "private",
-    "default_format": "long",
+    "default_privacy": "public",
+    "default_format": "short",
     "default_style": "entertainment",
-    "default_voice": "local:en-us",
+    "default_voice": "edge:hi-IN-MadhurNeural",
     "default_mood": "magenta",
+    "content_language": "hinglish",
     "openai_api_key": "",
     "openai_model": "gpt-4o-mini",
     "anthropic_api_key": "",
@@ -32,13 +33,14 @@ DEFAULTS: dict[str, Any] = {
     "youtube_category_id": "24",
     "made_for_kids": False,
     "autopilot_enabled": False,
-    "autopilot_interval_hours": 6,
-    "autopilot_daily_cap": 3,
+    "autopilot_interval_hours": 2,
+    "autopilot_daily_cap": 4,
     "autopilot_format": "short",
     "autopilot_style": "entertainment",
     "autopilot_region": "IN",
     "autopilot_publish": "schedule",
     "entertainment_mode": True,
+    "daily_channel_mode": True,
 }
 
 

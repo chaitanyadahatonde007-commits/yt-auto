@@ -26,6 +26,8 @@ Retention rules:
 - on_screen: 2–4 punchy words, not a sentence.
 - visual_prompt: one filmable cinematic moment that matches THAT line — faces, weather, stadium lights, film sets, night streets. No text, no letters, no logos, no watermark.
 
+Language: follow the brief. For hinglish, write Roman Hinglish like Indian YouTube comedy (Hindi + English mix, no Devanagari). For hindi, still prefer Roman Hinglish on_screen so captions render.
+Funny. Two cartoon hosts act every line: Golu (loud, usually wrong) and Pihu (roast + twist). Alternate speakers. Put "character": "Golu" or "Pihu" on each scene.
 Stay honest. Never invent statistics, quotes, or "leaked" events. If something is a theory, say it is a theory. No celebrity harassment, no medical advice, no political fight.
 
 Return ONLY valid JSON with this shape:
@@ -38,8 +40,9 @@ Return ONLY valid JSON with this shape:
      {
        "kind": "title|narration|stat|outro",
        "text": "spoken words for this shot only",
-       "on_screen": "2-4 word graphic",
-       "visual_prompt": "photoreal cinematic still that illustrates this line, no text, no letters, no logos, no watermark, specific objects and setting"
+       "on_screen": "2-4 word graphic in Roman letters",
+       "character": "Golu or Pihu",
+       "visual_prompt": "the named cartoon host acting this line, consistent character design, no text, no letters, no logos, no watermark"
      }
   ]
 }

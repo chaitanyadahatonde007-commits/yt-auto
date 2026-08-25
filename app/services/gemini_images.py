@@ -102,14 +102,9 @@ async def generate_still(prompt: str, dest: Path, aspect: str = "16:9") -> bool:
 
 def visual_prompt_for(scene: dict[str, Any], project: dict[str, Any]) -> str:
     if (scene.get("visual_prompt") or "").strip():
-        return scene["visual_prompt"].strip()
-    topic = project.get("topic") or "this subject"
-    line = (scene.get("text") or "")[:220]
-    card = scene.get("on_screen") or topic
-    kind = scene.get("kind") or "narration"
-    mood = project.get("visual_mood") or "cinematic"
-    return (
-        f"{kind} shot about {topic}. Headline idea: {card}. "
-        f"What the host is saying: {line}. Mood: {mood}. "
-        "Show a specific real-world or scientific picture that matches the line."
-    )
+        base = scene["visual_prompt"].strip()
+    else:
+        from app.services.characters import acting_prompt
+
+        base = acting_prompt(scene, project)
+    return base

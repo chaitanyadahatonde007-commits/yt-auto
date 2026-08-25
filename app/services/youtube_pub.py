@@ -152,7 +152,7 @@ def upload_video(project: dict[str, Any], privacy: str | None = None, publish_at
             "title": (script.get("title") or project.get("title") or "ChannelForge video")[:100],
             "description": script.get("description") or project.get("topic") or "",
             "tags": (script.get("tags") or [])[:15],
-            "categoryId": settings.get("youtube_category_id") or "27",
+            "categoryId": settings.get("youtube_category_id") or "24",
         },
         "status": {
             "privacyStatus": "private" if publish_at else privacy,

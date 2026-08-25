@@ -21,6 +21,8 @@ EDGE_VOICES = [
     {"id": "edge:en-AU-WilliamNeural", "label": "William · Australian neural", "gender": "masculine", "engine": "edge"},
     {"id": "edge:en-AU-NatashaNeural", "label": "Natasha · Australian neural", "gender": "feminine", "engine": "edge"},
     {"id": "edge:en-IN-NeerjaNeural", "label": "Neerja · Indian English neural", "gender": "feminine", "engine": "edge"},
+    {"id": "edge:hi-IN-MadhurNeural", "label": "Madhur · Hindi neural", "gender": "masculine", "engine": "edge"},
+    {"id": "edge:hi-IN-SwaraNeural", "label": "Swara · Hindi neural", "gender": "feminine", "engine": "edge"},
 ]
 
 OPENAI_VOICES = [
@@ -45,6 +47,7 @@ LOCAL_VOICES = [
     {"id": "local:en-us-warm", "label": "Studio Warm · local", "gender": "feminine", "engine": "local", "espeak": "en-us", "speed": 142, "pitch": 62},
     {"id": "local:en-gb", "label": "Studio UK · local", "gender": "masculine", "engine": "local", "espeak": "en-gb", "speed": 136, "pitch": 38},
     {"id": "local:en-gb-bright", "label": "Studio Bright UK · local", "gender": "feminine", "engine": "local", "espeak": "en-gb", "speed": 144, "pitch": 58},
+    {"id": "local:hi", "label": "Studio Hindi · local", "gender": "masculine", "engine": "local", "espeak": "hi", "speed": 140, "pitch": 44},
 ]
 
 
@@ -146,7 +149,10 @@ async def _to_wav(src: Path, dest: Path) -> None:
 
 
 async def synthesize(project: dict[str, Any], text: str, voice_id: str | None = None) -> dict[str, Any]:
-    voice_id = voice_id or project.get("voice") or "local:en-us"
+    voice_id = voice_id or project.get("voice") or ""
+    lang = (project.get("language") or "").lower()
+    if not voice_id or (lang in {"hinglish", "hindi"} and voice_id.startswith("local:en")):
+        voice_id = "edge:hi-IN-MadhurNeural"
     folder = project_dir(project["id"])
     wav_path = folder / "voice.wav"
     raw_path = folder / "voice_raw"
@@ -167,7 +173,8 @@ async def synthesize(project: dict[str, Any], text: str, voice_id: str | None = 
                 await _to_wav(raw_path.with_suffix(".wav"), wav_path)
                 words = None
             elif engine == "gtts":
-                await _gtts(text, raw_path.with_suffix(".mp3"))
+                lang = "hi" if "hi" in voice_id or spec == "hi" else "en"
+                await _gtts(text, raw_path.with_suffix(".mp3"), lang=lang)
                 await _to_wav(raw_path.with_suffix(".mp3"), wav_path)
                 words = None
             else:
@@ -205,11 +212,20 @@ def _engine_order(voice_id: str) -> list[tuple[str, Any]]:
     # Fallbacks
     from app.config import load_settings
 
+    hindi = voice_id.startswith("edge:hi-") or voice_id == "local:hi"
+    if hindi:
+        if not any(e[0] == "edge" and str(e[1]).startswith("hi-") for e in order):
+            order.append(("edge", "hi-IN-MadhurNeural"))
+        order.append(("gtts", "hi"))
+        hi_local = next((v for v in LOCAL_VOICES if v["id"] == "local:hi"), None)
+        if hi_local:
+            order.append(("local", hi_local))
+        return order
     if load_settings().get("groq_api_key") and not any(e[0] == "groq" for e in order):
         order.append(("groq", "Fritz-PlayAI"))
     if not any(e[0] == "edge" for e in order):
-        order.append(("edge", "en-US-AndrewNeural"))
-    order.append(("gtts", None))
+        order.append(("edge", "en-IN-NeerjaNeural"))
+    order.append(("gtts", "en"))
     if not any(e[0] == "local" for e in order):
         order.append(("local", LOCAL_VOICES[0]))
     return order
@@ -263,11 +279,11 @@ async def _openai(text: str, voice: str, dest: Path) -> None:
     dest.write_bytes(res.content)
 
 
-async def _gtts(text: str, dest: Path) -> None:
+async def _gtts(text: str, dest: Path, lang: str = "en") -> None:
     from gtts import gTTS
 
     def _run() -> None:
-        tts = gTTS(text=text, lang="en")
+        tts = gTTS(text=text, lang=lang or "en")
         tts.save(str(dest))
 
     await asyncio.wait_for(asyncio.to_thread(_run), timeout=40)

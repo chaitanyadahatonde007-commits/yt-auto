@@ -220,16 +220,18 @@ _FUN = {
 
 def _entertainment_vault() -> list[dict[str, Any]]:
     return [
-        {"title": "The movie ending everyone still argues about", "source": "vault", "why": "Evergreen hook"},
-        {"title": "The cricket rule commentators skip", "source": "vault", "why": "India sports hook"},
-        {"title": "Why that one Bollywood song still lives in your head", "source": "vault", "why": "Music hook"},
-        {"title": "The villain who was actually right", "source": "vault", "why": "Story hook"},
-        {"title": "The scene they cut that changes the whole film", "source": "vault", "why": "Rewind hook"},
-        {"title": "Why sequels feel worse even when they cost more", "source": "vault", "why": "Industry hook"},
-        {"title": "The IPL chase moment that rewired the crowd", "source": "vault", "why": "Sports hook"},
-        {"title": "Why you finish a series you already hate", "source": "vault", "why": "Psychology hook"},
-        {"title": "The background extra who stole the scene", "source": "vault", "why": "Detail hook"},
-        {"title": "The trailer lie you always fall for", "source": "vault", "why": "Craft hook"},
+        {"title": "Shaadi mein uncle dance ka secret timing", "source": "vault", "why": "Desi funny"},
+        {"title": "IPL last over mein dimaag kyun band ho jata hai", "source": "vault", "why": "Cricket hook"},
+        {"title": "Mummy ka phone aate hi acting change", "source": "vault", "why": "Relatable"},
+        {"title": "Bollywood interval ke baad hero alag kyun lagta hai", "source": "vault", "why": "Film hook"},
+        {"title": "Auto wale bhaiya ka GPS dimaag", "source": "vault", "why": "Street comedy"},
+        {"title": "Exam hall ka last 10 minute horror", "source": "vault", "why": "Student hook"},
+        {"title": "Villain actually right tha kya", "source": "vault", "why": "Story hook"},
+        {"title": "Woh scene jo cut ho gaya aur film badal gayi", "source": "vault", "why": "Rewind hook"},
+        {"title": "Gaana dimaag mein kyun ghumta rehta hai", "source": "vault", "why": "Music hook"},
+        {"title": "Series hate karke bhi khatam kyun karte ho", "source": "vault", "why": "OTT hook"},
+        {"title": "Trailer jhoot kyun bolta hai", "source": "vault", "why": "Craft hook"},
+        {"title": "Background extra ne scene chura liya", "source": "vault", "why": "Detail hook"},
     ]
 
 

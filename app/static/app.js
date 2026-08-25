@@ -113,13 +113,13 @@ async function renderHome() {
     <section class="hero">
       <div class="kicker">YouTube automation floor</div>
       <h1>Write it. Voice it.<br/>Cut it. Ship it.</h1>
-      <p class="lede">Entertainment cuts built to hold a stranger. Hook in the first line, twist in the middle, payoff late. Then voice, picture, and upload.</p>
+      <p class="lede">Daily Hinglish comedy channel. Golu aur Pihu har line act karte hain. 4 shorts a day, peak IST pe auto-publish.</p>
       <form class="command" id="quick">
         <input name="topic" placeholder="What should we film?  e.g. Why time slows near a black hole" required />
         <button class="btn primary" type="submit">Auto-cut</button>
       </form>
       <div class="chips" id="ideas">
-        ${["The movie ending everyone still argues about", "The cricket rule commentators skip", "Why that one song still lives in your head", "The villain who was actually right", "The scene they cut that changes the film"].map((t) => `<button class="chip" data-idea="${esc(t)}">${esc(t)}</button>`).join("")}
+        ${["IPL last over mein dimaag band", "Shaadi mein uncle dance", "Mummy ka phone aate hi acting", "Villain actually right tha kya", "Trailer jhoot kyun bolta hai"].map((t) => `<button class="chip" data-idea="${esc(t)}">${esc(t)}</button>`).join("")}
       </div>
     </section>
     <h2 class="section">On the bench</h2>
@@ -173,10 +173,11 @@ async function renderNew() {
       <label class="field"><span>Topic</span><input name="topic" required placeholder="The thing the video is actually about" /></label>
       <label class="field"><span>Notes / facts you want in (optional)</span><textarea name="notes" placeholder="Paste bullets, claims to avoid, or a rough outline."></textarea></label>
       <div class="form-grid">
-        <label class="field"><span>Format</span>${fieldSelect("format", [["long", "16:9 long-form"], ["short", "9:16 Short"]], settings.default_format || "long")}</label>
+        <label class="field"><span>Format</span>${fieldSelect("format", [["short", "9:16 Short"], ["long", "16:9 long-form"]], settings.default_format || "short")}</label>
         <label class="field"><span>Style</span>${fieldSelect("style", STYLES, settings.default_style || "explainer")}</label>
         <label class="field"><span>Target seconds</span><input type="number" name="target_seconds" min="20" max="600" value="${settings.default_format === "short" ? 45 : 150}" /></label>
-        <label class="field"><span>Voice</span>${fieldSelect("voice", voices.map((v) => [v.id, v.label]), settings.default_voice || "local:en-us")}</label>
+        <label class="field"><span>Language</span>${fieldSelect("language", [["hinglish", "Hinglish"], ["hindi", "Hindi (Roman)"], ["english", "English"]], settings.content_language || "hinglish")}</label>
+        <label class="field"><span>Voice</span>${fieldSelect("voice", voices.map((v) => [v.id, v.label]), settings.default_voice || "edge:hi-IN-MadhurNeural")}</label>
         <label class="field"><span>Visual mood</span>${fieldSelect("visual_mood", MOODS.map((m) => [m, m]), settings.default_mood || "ember")}</label>
       </div>
       <div class="row">
@@ -449,7 +450,7 @@ async function renderAutopilot() {
     <div class="toprow">
       <div>
         <h1>Autopilot</h1>
-        <p class="lede">Picks a famous entertainment topic, writes a hook-first cut, then schedules it. Leave the Command Prompt running.</p>
+        <p class="lede">Har din 4 funny Hinglish shorts. Characters act the script. Clips search hote hain. Peak time pe khud YouTube pe chale jaate hain. CMD chalu chhodo.</p>
       </div>
       <div class="row">
         <button class="btn ${on ? "" : "primary"}" id="toggle" type="button">${on ? "Pause" : "Start autopilot"}</button>
@@ -460,14 +461,14 @@ async function renderAutopilot() {
       <form class="panel" id="ap">
         <div class="form-grid">
           <label class="field"><span>Every (hours)</span><input type="number" name="autopilot_interval_hours" min="1" max="48" value="${esc(pack.interval_hours)}" /></label>
-          <label class="field"><span>Max per day</span><input type="number" name="autopilot_daily_cap" min="1" max="12" value="${esc(pack.daily_cap)}" /></label>
+          <label class="field"><span>Max per day</span><input type="number" name="autopilot_daily_cap" min="1" max="12" value="${esc(pack.daily_cap || 4)}" /></label>
           <label class="field"><span>Format</span>${fieldSelect("autopilot_format", [["short", "Short 9:16"], ["long", "Long 16:9"]], pack.format)}</label>
           <label class="field"><span>Style</span>${fieldSelect("autopilot_style", STYLES, pack.style)}</label>
           <label class="field"><span>Region</span>${fieldSelect("autopilot_region", [["IN", "India"], ["US", "United States"], ["GB", "UK"]], pack.region)}</label>
           <label class="field"><span>When ready</span>${fieldSelect("autopilot_publish", [["schedule", "Schedule on YouTube"], ["private", "Upload private now"], ["unlisted", "Upload unlisted now"], ["public", "Upload public now"], ["none", "Only render, do not upload"]], pack.publish)}</label>
         </div>
         <button class="btn" type="submit">Save schedule</button>
-        <p class="notice" style="margin-top:14px">Today ${esc(pack.today)} / ${esc(pack.daily_cap)}. Next slot ${esc(String(pack.next_slot || "").replace("T", " ").slice(0, 16))} IST. YouTube ${pack.youtube ? "connected" : "not connected — videos will still be made"}.</p>
+        <p class="notice" style="margin-top:14px">Aaj ${esc(pack.today)} / ${esc(pack.daily_cap)} videos. Peak slots 9:00 · 13:00 · 18:30 · 21:00 IST. Next ${esc(String(pack.next_slot || "").replace("T", " ").slice(0, 16))}. YouTube ${pack.youtube ? "connected — publish automatic" : "not connected — pehle Channel mein Connect karo"}.</p>
         <p class="toast" id="msg">${pack.busy ? "A video is being made now…" : ""}</p>
       </form>
       <aside class="panel">
@@ -576,7 +577,8 @@ async function renderSettings() {
     <form class="panel" id="set" style="max-width:720px">
       <label class="field"><span>Channel name</span><input name="channel_name" value="${esc(val("channel_name"))}" /></label>
       <div class="form-grid">
-        <label class="field"><span>Default format</span>${fieldSelect("default_format", [["long", "Long"], ["short", "Short"]], val("default_format"))}</label>
+        <label class="field"><span>Default format</span>${fieldSelect("default_format", [["short", "Short"], ["long", "Long"]], val("default_format") || "short")}</label>
+        <label class="field"><span>Language</span>${fieldSelect("content_language", [["hinglish", "Hinglish"], ["hindi", "Hindi (Roman)"], ["english", "English"]], val("content_language") || "hinglish")}</label>
         <label class="field"><span>Default style</span>${fieldSelect("default_style", STYLES, val("default_style"))}</label>
         <label class="field"><span>Default voice</span>${fieldSelect("default_voice", voices.map((v) => [v.id, v.label]), val("default_voice"))}</label>
         <label class="field"><span>Default privacy</span>${fieldSelect("default_privacy", [["private", "Private"], ["unlisted", "Unlisted"], ["public", "Public"]], val("default_privacy"))}</label>

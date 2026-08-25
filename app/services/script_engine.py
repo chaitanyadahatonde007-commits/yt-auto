@@ -22,7 +22,7 @@ MOODS = ("ember", "navy", "teal", "violet", "amber", "steel", "forest", "magenta
 
 
 def word_count(text: str) -> int:
-    return len(re.findall(r"[A-Za-z0-9']+", text or ""))
+    return len(re.findall(r"[A-Za-z0-9']+|[\u0900-\u097F]+", text or ""))
 
 
 def estimate_seconds(text: str) -> float:
@@ -67,6 +67,15 @@ def _on_screen(text: str, fallback: str) -> str:
     return " ".join(phrase).upper()
 
 
+def _speaker(text: str) -> str:
+    low = (text or "").lstrip().lower()
+    if low.startswith("golu"):
+        return "Golu"
+    if low.startswith("pihu"):
+        return "Pihu"
+    return ""
+
+
 STOP = {
     "this", "that", "with", "from", "have", "what", "when", "where", "which",
     "your", "about", "into", "just", "like", "they", "them", "then", "than",
@@ -94,12 +103,13 @@ def _pack_scenes(sentences: list[str], kind: str = "narration") -> list[dict[str
                     "kind": kind,
                     "text": text,
                     "on_screen": _on_screen(text, "LISTEN"),
+                    "character": _speaker(text),
                 }
             )
             bucket = []
     if bucket:
         text = " ".join(bucket).strip()
-        scenes.append({"kind": kind, "text": text, "on_screen": _on_screen(text, "NEXT")})
+        scenes.append({"kind": kind, "text": text, "on_screen": _on_screen(text, "NEXT"), "character": _speaker(text)})
     return scenes
 
 
@@ -118,10 +128,20 @@ def _brief(project: dict[str, Any], research: dict[str, Any] | None) -> str:
     facts = _fact_lines(research)
     fact_block = "\n".join(f"- {f}" for f in facts) or "- No verified source facts. Stay honest and avoid fake numbers."
     fmt = "YouTube Short (vertical, under 60 seconds)" if project.get("format") == "short" else "long-form 16:9 video"
+    lang = (project.get("language") or "hinglish").strip()
+    from app.services.characters import cast_note
+    lang_line = {
+        "hindi": "Write spoken lines in Hinglish (Roman script, Hindi + English). Captions stay Roman.",
+        "hinglish": "Write spoken lines in funny Hinglish (Roman script). Example: Arre ruk, yeh ending galat hai.",
+        "english": "Write punchy Indian-English entertainment, still funny.",
+    }.get(lang, "Write funny Hinglish in Roman script.")
     return f"""
 Topic: {project.get('topic')}
 Working title: {project.get('title')}
 Format: {fmt}
+Language: {lang}
+{lang_line}
+{cast_note()}
 Target length: {project.get('target_seconds')} seconds
 Style: {project.get('style')} — {STYLES.get(project.get('style') or 'entertainment', '')}
 Creator notes: {project.get('notes') or 'None'}
@@ -145,14 +165,25 @@ def _local_script(project: dict[str, Any], research: dict[str, Any] | None) -> d
     facts = _fact_lines(research)
     seed = f"{topic}|{style}|{fmt}"
 
-    hooks = [
-        f"Pause. The part about {topic} you remember is the decoy.",
-        f"Nobody talks about the last four seconds of {topic}. That is the whole movie.",
-        f"You have seen {topic} a hundred times. You have not seen this cut.",
-        f"Stop. If this is about {topic}, the twist is not where you think.",
-        f"There is a reason {topic} still lives in your head. It is not the plot.",
-        f"This is the {topic} detail that makes people rewind.",
-    ]
+    lang = (project.get("language") or "hinglish").strip()
+    if lang in {"hinglish", "hindi"}:
+        hooks = [
+            f"Arre ruk. {nice} ke baare mein jo tu soch raha hai, woh galat hai.",
+            f"Bhai, {topic} ka last four second — wahi poori movie hai.",
+            f"Tune {topic} sau baar dekha. Yeh cut nahi dekha.",
+            f"Ruk. Twist wahan nahi hai jahan tu soch raha hai.",
+            f"{nice} tere dimaag mein isliye ghumti hai kyunki plot nahi, timing hai.",
+            f"Yeh {topic} wali cheez log rewind karke dekhte hain.",
+        ]
+    else:
+        hooks = [
+            f"Pause. The part about {topic} you remember is the decoy.",
+            f"Nobody talks about the last four seconds of {topic}. That is the whole movie.",
+            f"You have seen {topic} a hundred times. You have not seen this cut.",
+            f"Stop. If this is about {topic}, the twist is not where you think.",
+            f"There is a reason {topic} still lives in your head. It is not the plot.",
+            f"This is the {topic} detail that makes people rewind.",
+        ]
     hook = _hash_pick(seed + "hook", hooks)
 
     titles = {
@@ -240,18 +271,19 @@ def _entertainment_script(nice: str, topic: str, hook: str, facts: list[str], ta
     scenes: list[dict[str, Any]] = [
         {
             "kind": "title",
-            "text": f"{hook} Stay for the last turn. That is the part people argue about.",
-            "on_screen": "WAIT FOR IT",
+            "text": f"{hook} Last turn tak ruko. Wahi jhagda hota hai.",
+            "on_screen": "RUK JA",
+            "character": "Golu",
         }
     ]
     frames = [
-        f"The version of {topic} you were sold is the trailer. Clean. Loud. Easy to quote.",
-        f"The real cut is messier. Someone made a choice in a room you never see, and that choice is still running your brain.",
-        f"Here is the setup. {nice} works because it hides the important beat inside a joke, a song, a chase, a look that lasts half a second.",
-        f"You think you are watching plot. You are watching timing. The second the timing slips, the spell breaks — and you feel it in your chest before you can name it.",
-        f"That is not even the part. The part is what they leave out. Silence. A cutaway. A face that does not celebrate.",
-        f"Once you notice that gap, you cannot unsee {topic}. Every rewind is you hunting the same missing frame.",
-        f"So the hook is not a secret leak. It is craft. {nice} stays famous because it withholds the thing you came for until you have already stayed.",
+        f"Golu: Jo version tujhe {topic} ka mila, woh trailer tha. Clean. Loud. Easy to quote.",
+        f"Pihu: Asli cut messy hai. Kisi ne ek room mein choice maari, aur woh ab bhi tere dimaag mein chal rahi hai.",
+        f"Golu: Setup yeh hai. {nice} isliye chalti hai kyunki asli beat joke, gaana, chase, ya aadhe second ke look ke andar chhupi hai.",
+        f"Pihu: Tune socha plot dekh raha hai. Timing dekh raha hai. Timing slip hui, spell toot gaya.",
+        f"Golu: Woh bhi part nahi hai. Part woh hai jo woh chhod dete hain. Silence. Cutaway. Woh face jo celebrate nahi karta.",
+        f"Pihu: Ek baar gap dikh gaya, {topic} wapas nahi chhupta. Har rewind usi missing frame ki talash hai.",
+        f"Golu: Toh hook koi leak nahi. Craft hai. {nice} isliye famous hai kyunki jo cheez ke liye aaye the, woh last mein dete hain.",
     ]
     if facts:
         frames.insert(2, f"Hold this against what we can actually say. {facts[0]}")
@@ -392,22 +424,22 @@ def _short_script(
 ) -> list[dict[str, Any]]:
     lines = [
         hook,
-        f"The version of {topic} you remember is the trailer. Not the scene.",
+        f"Golu: Jo {topic} tujhe yaad hai, woh trailer hai. Scene nahi.",
     ]
     if facts:
-        lines.append(facts[0])
+        lines.append(f"Pihu: {facts[0]}")
         if len(facts) > 1:
-            lines.append(f"Wait. {facts[1]}")
+            lines.append(f"Golu: Ruk. {facts[1]}")
         else:
-            lines.append(f"The twist is timing. {nice} hides the real beat in a look you almost miss.")
+            lines.append(f"Pihu: Twist timing hai. {nice} asli beat us look mein chhupati hai jo almost miss ho jata hai.")
     else:
         lines.extend(
             [
-                f"{nice} works because it withholds the thing you came for.",
-                f"Once you see that gap, you rewind. That is the hook.",
+                f"Pihu: {nice} isliye chalti hai kyunki jo cheez ke liye aaye the, woh rok ke rakhti hai.",
+                f"Golu: Gap dikha, rewind. Wahi hook hai.",
             ]
         )
-    lines.append(f"Follow for the longer cut. Comment the second you noticed it in {topic}.")
+    lines.append(f"Pihu: Follow kar. Comment kar — {topic} mein tujhe kaunsa second laga.")
     scenes = []
     for i, line in enumerate(lines):
         kind = "title" if i == 0 else "outro" if i == len(lines) - 1 else "stat" if i == 1 else "narration"
@@ -425,9 +457,9 @@ def _outro(topic: str, nice: str) -> dict[str, Any]:
     return {
         "kind": "outro",
         "text": (
-            f"If you stayed to the end, you felt it. Subscribe. "
-            f"Comment the exact second {nice} got you. "
-            f"The next one is the cut they never show."
+            f"End tak ruka na? Subscribe. "
+            f"Comment kar {nice} ka kaunsa second laga. "
+            f"Agli wali woh cut hai jo woh kabhi nahi dikhate."
         ),
         "on_screen": "SUBSCRIBE",
     }
@@ -474,7 +506,7 @@ def _fit_to_duration(scenes: list[dict[str, Any]], target: int) -> list[dict[str
 
 def _tags(topic: str, style: str) -> list[str]:
     words = [w.lower() for w in re.findall(r"[A-Za-z0-9]+", topic) if len(w) > 2]
-    base = words[:5] + [style, "entertainment", "story", "movies", "shorts", "viral", "youtube", "channelforge"]
+    base = words[:5] + [style, "entertainment", "hinglish", "comedy", "shorts", "bollywood", "cricket", "youtube"]
     seen = []
     for t in base:
         if t not in seen:
@@ -517,6 +549,7 @@ def normalize_script(data: dict[str, Any], project: dict[str, Any]) -> dict[str,
                 "kind": raw.get("kind") or "narration",
                 "text": text,
                 "on_screen": (raw.get("on_screen") or _on_screen(text, "SCENE")).strip(),
+                "character": (raw.get("character") or _speaker(text)).strip(),
                 "visual_prompt": (raw.get("visual_prompt") or "").strip(),
                 "duration": round(float(raw.get("duration") or estimate_seconds(text)), 2),
             }
@@ -547,6 +580,10 @@ def normalize_script(data: dict[str, Any], project: dict[str, Any]) -> dict[str,
 
 
 async def write_script(project: dict[str, Any], research: dict[str, Any] | None) -> dict[str, Any]:
+    if not project.get("language"):
+        from app.config import load_settings
+
+        project["language"] = load_settings().get("content_language") or "hinglish"
     llm = await generate_script_llm(_brief(project, research))
     if llm:
         llm["engine"] = llm.get("engine") or "llm"

@@ -22,19 +22,48 @@ from app.store import (
     update_autopilot_run,
 )
 
-SLOTS = (9, 13, 19)
+# Peak India entertainment windows (IST).
+SLOTS = ((9, 0), (13, 0), (18, 30), (21, 0))
 _LOCK = asyncio.Lock()
+
+
+def _slot_key(when: datetime) -> str:
+    local = when.astimezone(IST)
+    return local.strftime("%Y-%m-%d %H:%M")
+
+
+def used_slot_keys() -> set[str]:
+    used: set[str] = set()
+    try:
+        for run in list_autopilot_runs(40):
+            stamp = run.get("scheduled_for")
+            if not stamp or run.get("status") not in {"scheduled", "published", "ready", "running"}:
+                continue
+            try:
+                when = datetime.fromisoformat(str(stamp).replace("Z", "+00:00"))
+                if when.tzinfo is None:
+                    when = when.replace(tzinfo=timezone.utc)
+                used.add(_slot_key(when))
+            except Exception:
+                continue
+    except Exception:
+        return used
+    return used
 
 
 def next_slot(after: datetime | None = None) -> datetime:
     now = after or datetime.now(IST)
-    for day in range(0, 4):
-        base = (now + timedelta(days=day)).replace(minute=0, second=0, microsecond=0)
-        for hour in SLOTS:
-            candidate = base.replace(hour=hour)
-            if candidate > now + timedelta(minutes=45):
-                return candidate
-    return now + timedelta(hours=6)
+    taken = used_slot_keys()
+    for day in range(0, 5):
+        base = (now + timedelta(days=day)).replace(second=0, microsecond=0)
+        for hour, minute in SLOTS:
+            candidate = base.replace(hour=hour, minute=minute)
+            if candidate <= now + timedelta(minutes=20):
+                continue
+            if _slot_key(candidate) in taken:
+                continue
+            return candidate
+    return now + timedelta(hours=3)
 
 
 def status_payload() -> dict[str, Any]:
@@ -58,18 +87,20 @@ def status_payload() -> dict[str, Any]:
     return {
         "enabled": bool(settings.get("autopilot_enabled")),
         "interval_hours": int(settings.get("autopilot_interval_hours") or 6),
-        "daily_cap": int(settings.get("autopilot_daily_cap") or 3),
+        "daily_cap": int(settings.get("autopilot_daily_cap") or 4),
         "format": settings.get("autopilot_format") or "short",
-        "style": settings.get("autopilot_style") or "explainer",
+        "style": settings.get("autopilot_style") or "entertainment",
+        "language": settings.get("content_language") or "hinglish",
         "region": settings.get("autopilot_region") or "IN",
         "publish": settings.get("autopilot_publish") or "schedule",
+        "slots": ["9:00", "13:00", "18:30", "21:00"],
         "today": today,
         "busy": busy,
         "youtube": youtube_ok,
         "last": last,
         "next_slot": nxt,
         "runs": runs,
-        "note": "Leave ChannelForge running. Autopilot only fires while py -3 run.py is open.",
+        "note": "4 funny Hinglish shorts a day. Leave py -3 run.py open. Videos auto-schedule at 9:00, 13:00, 18:30, 21:00 IST.",
     }
 
 
@@ -78,19 +109,20 @@ def _due(settings: dict[str, Any]) -> bool:
         return False
     if autopilot_busy():
         return False
-    if autopilot_count_today() >= int(settings.get("autopilot_daily_cap") or 3):
+    if autopilot_count_today() >= int(settings.get("autopilot_daily_cap") or 4):
         return False
     last = last_successful_autopilot()
     if not last:
         return True
-    hours = int(settings.get("autopilot_interval_hours") or 6)
+    # Catch up to 4/day. 75 minutes between cuts so WaveSpeed can breathe.
     try:
         created = datetime.fromisoformat(last["created_at"].replace("Z", "+00:00"))
         if created.tzinfo is None:
             created = created.replace(tzinfo=timezone.utc)
     except Exception:
         return True
-    return datetime.now(timezone.utc) - created >= timedelta(hours=hours)
+    wait = max(75, int(float(settings.get("autopilot_interval_hours") or 2) * 30))
+    return datetime.now(timezone.utc) - created >= timedelta(minutes=wait)
 
 
 async def run_cycle(force: bool = False) -> dict[str, Any]:

@@ -147,6 +147,7 @@ async def patch_project(project_id: str, payload: dict[str, Any]) -> dict[str, A
         "target_seconds",
         "voice",
         "visual_mood",
+        "language",
         "status",
     }
     for key in allowed:
@@ -280,6 +281,7 @@ async def autopilot_update(payload: dict[str, Any]) -> dict[str, Any]:
         "autopilot_style",
         "autopilot_region",
         "autopilot_publish",
+        "content_language",
     }
     save_settings({k: payload[k] for k in allowed if k in payload})
     return status_payload()

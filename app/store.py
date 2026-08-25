@@ -100,8 +100,12 @@ def _row_to_project(row: sqlite3.Row) -> dict[str, Any]:
 def blank_project(payload: dict[str, Any]) -> dict[str, Any]:
     now = utcnow()
     topic = (payload.get("topic") or "Untitled idea").strip()
-    fmt = payload.get("format") or "long"
+    fmt = payload.get("format") or "short"
     style = payload.get("style") or "entertainment"
+    from app.config import load_settings
+
+    settings = load_settings()
+    language = payload.get("language") or settings.get("content_language") or "hinglish"
     target = int(payload.get("target_seconds") or (45 if fmt == "short" else 180))
     return {
         "id": new_id("cf"),
@@ -110,8 +114,9 @@ def blank_project(payload: dict[str, Any]) -> dict[str, Any]:
         "notes": payload.get("notes") or "",
         "format": fmt,
         "style": style or "entertainment",
+        "language": language,
         "target_seconds": target,
-        "voice": payload.get("voice") or "local:en-us",
+        "voice": payload.get("voice") or settings.get("default_voice") or "edge:hi-IN-MadhurNeural",
         "visual_mood": payload.get("visual_mood") or "magenta",
         "status": "draft",
         "created_at": now,
