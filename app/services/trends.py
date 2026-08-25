@@ -236,6 +236,14 @@ def _entertainment_vault() -> list[dict[str, Any]]:
         {"title": "Series hate karke bhi khatam kyun karte ho", "source": "vault", "why": "OTT hook"},
         {"title": "Trailer jhoot kyun bolta hai", "source": "vault", "why": "Craft hook"},
         {"title": "Background extra ne scene chura liya", "source": "vault", "why": "Detail hook"},
+        {"title": "Dost ka late aana aur 50 excuses", "source": "vault", "why": "Friendship comedy"},
+        {"title": "WiFi chala gaya toh ghar ka scene", "source": "vault", "why": "Relatable"},
+        {"title": "Cricket commentary vs ghar pe commentary", "source": "vault", "why": "Sports funny"},
+        {"title": "Hero ka entry music dimaag mein kyun bajta hai", "source": "vault", "why": "Film hook"},
+        {"title": "Online class mein camera off wala jeevan", "source": "vault", "why": "Student funny"},
+        {"title": "Zomato wale bhaiya ka waiting game", "source": "vault", "why": "Street comedy"},
+        {"title": "Interval mein popcorn khatam hone ka dard", "source": "vault", "why": "Cinema funny"},
+        {"title": "Villain ka backstory hero se better kyun hota hai", "source": "vault", "why": "Story hook"},
     ]
 
 
@@ -248,15 +256,26 @@ def _prefer_entertainment(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 async def pick_topic(region: str | None = None) -> dict[str, Any]:
+    return pick_topic_now()
+
+
+def pick_topic_now() -> dict[str, Any]:
+    import random
+
     used = {t.lower() for t in autopilot_used_topics()}
-    vault = [item for item in _entertainment_vault() if item["title"].lower() not in used]
-    try:
-        live = await asyncio.wait_for(discover_trends(region), timeout=5.0)
-    except Exception:
-        live = []
-    candidates = [item for item in (live + vault) if item["title"].lower() not in used] or vault or _entertainment_vault()
-    try:
-        return await asyncio.wait_for(_refine_topic(candidates[0]), timeout=8.0)
-    except Exception:
-        raw = candidates[0]
-        return {"topic": raw["title"], "source": raw.get("source") or "vault", "why": raw.get("why") or "", "notes": raw["title"]}
+    pool = [item for item in _entertainment_vault() if item["title"].lower() not in used]
+    if not pool:
+        pool = list(_entertainment_vault())
+    raw = random.choice(pool)
+    return {
+        "topic": raw["title"],
+        "source": raw.get("source") or "vault",
+        "why": raw.get("why") or "studio topic",
+        "notes": raw["title"],
+    }
+
+
+def local_topics() -> list[dict[str, Any]]:
+    used = {t.lower() for t in autopilot_used_topics()}
+    items = [item for item in _entertainment_vault() if item["title"].lower() not in used]
+    return items or list(_entertainment_vault())

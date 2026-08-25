@@ -251,10 +251,9 @@ async def youtube_disconnect() -> dict[str, Any]:
 @router.get("/api/trends")
 async def trends() -> dict[str, Any]:
     try:
-        from app.services.trends import discover_trends
+        from app.services.trends import local_topics
 
-        items = await discover_trends()
-        return {"trends": items}
+        return {"trends": local_topics()}
     except Exception as exc:
         return {"trends": [], "error": str(exc)}
 
@@ -270,8 +269,9 @@ async def autopilot_status() -> dict[str, Any]:
 
 
 @router.put("/api/autopilot")
-async def autopilot_update(payload: dict[str, Any]) -> dict[str, Any]:
-    from app.services.autopilot import status_payload
+async def autopilot_update(payload: dict[str, Any], background: BackgroundTasks) -> dict[str, Any]:
+    from app.services.autopilot import run_cycle, status_payload
+    from app.store import recover_stale_autopilot
 
     allowed = {
         "autopilot_enabled",
@@ -283,17 +283,20 @@ async def autopilot_update(payload: dict[str, Any]) -> dict[str, Any]:
         "autopilot_publish",
         "content_language",
     }
+    turning_on = bool(payload.get("autopilot_enabled"))
     save_settings({k: payload[k] for k in allowed if k in payload})
+    if turning_on:
+        recover_stale_autopilot(max_age_sec=30)
+        _launch(background, run_cycle(force=True))
     return status_payload()
 
 
 @router.post("/api/autopilot/run-now")
 async def autopilot_run_now(background: BackgroundTasks) -> dict[str, Any]:
     from app.services.autopilot import run_cycle, status_payload
-    from app.store import autopilot_busy
+    from app.store import recover_stale_autopilot
 
-    if autopilot_busy():
-        raise HTTPException(409, "Autopilot is already making a video")
+    recover_stale_autopilot(max_age_sec=30)
     _launch(background, run_cycle(force=True))
     return {"ok": True, "autopilot": status_payload()}
 

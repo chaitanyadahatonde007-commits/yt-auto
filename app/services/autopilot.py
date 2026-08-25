@@ -19,6 +19,7 @@ from app.store import (
     create_project,
     last_successful_autopilot,
     list_autopilot_runs,
+    recover_stale_autopilot,
     update_autopilot_run,
 )
 
@@ -100,8 +101,31 @@ def status_payload() -> dict[str, Any]:
         "last": last,
         "next_slot": nxt,
         "runs": runs,
+        "why_idle": _why_idle(settings, today, busy),
         "note": "4 funny Hinglish shorts a day. Leave py -3 run.py open. Videos auto-schedule at 9:00, 13:00, 18:30, 21:00 IST.",
     }
+
+
+def _why_idle(settings: dict[str, Any], today: int, busy: bool) -> str:
+    if not settings.get("autopilot_enabled"):
+        return "Autopilot is off. Click Start autopilot."
+    if busy:
+        return "A cut is already running."
+    cap = int(settings.get("autopilot_daily_cap") or 4)
+    if today >= cap:
+        return f"Daily cap reached ({today}/{cap})."
+    last = last_successful_autopilot()
+    if last:
+        try:
+            created = datetime.fromisoformat(last["created_at"].replace("Z", "+00:00"))
+            if created.tzinfo is None:
+                created = created.replace(tzinfo=timezone.utc)
+            left = 20 * 60 - (datetime.now(timezone.utc) - created).total_seconds()
+            if left > 0:
+                return f"Next cut in {int(left // 60) + 1} min."
+        except Exception:
+            pass
+    return "Ready. Next cut starts now."
 
 
 def _due(settings: dict[str, Any]) -> bool:
@@ -127,8 +151,12 @@ def _due(settings: dict[str, Any]) -> bool:
 
 async def run_cycle(force: bool = False) -> dict[str, Any]:
     settings = load_settings()
+    if force:
+        recover_stale_autopilot(max_age_sec=30)
     if not force and not _due(settings):
-        return {"skipped": True, "reason": "not due"}
+        return {"skipped": True, "reason": _why_idle(settings, autopilot_count_today(), autopilot_busy())}
+    if _LOCK.locked():
+        return {"skipped": True, "reason": "already running"}
     async with _LOCK:
         return await _run_locked(settings)
 
@@ -136,7 +164,10 @@ async def run_cycle(force: bool = False) -> dict[str, Any]:
 async def _run_locked(settings: dict[str, Any]) -> dict[str, Any]:
     run = add_autopilot_run({"status": "running", "topic": "discovering…", "message": "Reading what is famous right now"})
     try:
-        picked = await pick_topic(settings.get("autopilot_region") or "IN")
+        from app.services.trends import pick_topic_now
+
+        picked = pick_topic_now()
+        print("Autopilot topic:", picked["topic"])
         update_autopilot_run(run["id"], topic=picked["topic"], source=picked.get("source"), message="Generating the cut")
         fmt = settings.get("autopilot_format") or "short"
         lang = settings.get("content_language") or "hinglish"
@@ -201,12 +232,22 @@ def get_fresh(run_id: str) -> dict[str, Any] | None:
 
 
 async def scheduler_loop() -> None:
-    await asyncio.sleep(8)
+    print("Autopilot scheduler live")
+    await asyncio.sleep(2)
     while True:
         try:
+            recover_stale_autopilot(max_age_sec=480)
             settings = load_settings()
-            if settings.get("autopilot_enabled") and _due(settings):
-                await run_cycle(force=False)
-        except Exception:
-            pass
-        await asyncio.sleep(60)
+            if settings.get("autopilot_enabled") and _due(settings) and not _LOCK.locked():
+                asyncio.create_task(_safe_cycle())
+        except Exception as exc:
+            print("Autopilot tick:", exc)
+        await asyncio.sleep(20)
+
+
+async def _safe_cycle() -> None:
+    try:
+        result = await run_cycle(force=False)
+        print("Autopilot cycle:", result.get("topic") or result)
+    except Exception as exc:
+        print("Autopilot cycle failed:", exc)

@@ -420,7 +420,7 @@ def last_successful_autopilot() -> dict[str, Any] | None:
     return dict(row) if row else None
 
 
-def recover_stale_autopilot(max_age_sec: int = 1500) -> int:
+def recover_stale_autopilot(max_age_sec: int = 480) -> int:
     now = datetime.now(timezone.utc)
     cleared = 0
     with _LOCK, connect() as conn:
