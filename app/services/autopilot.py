@@ -70,7 +70,7 @@ def status_payload() -> dict[str, Any]:
     settings = load_settings()
     youtube_ok = False
     try:
-        youtube_ok = bool(connected().get("connected"))
+        youtube_ok = bool(connected(quick=True).get("connected"))
     except Exception:
         youtube_ok = False
     try:
@@ -121,7 +121,7 @@ def _due(settings: dict[str, Any]) -> bool:
             created = created.replace(tzinfo=timezone.utc)
     except Exception:
         return True
-    wait = max(75, int(float(settings.get("autopilot_interval_hours") or 2) * 30))
+    wait = 20
     return datetime.now(timezone.utc) - created >= timedelta(minutes=wait)
 
 
@@ -139,15 +139,18 @@ async def _run_locked(settings: dict[str, Any]) -> dict[str, Any]:
         picked = await pick_topic(settings.get("autopilot_region") or "IN")
         update_autopilot_run(run["id"], topic=picked["topic"], source=picked.get("source"), message="Generating the cut")
         fmt = settings.get("autopilot_format") or "short"
+        lang = settings.get("content_language") or "hinglish"
         project = create_project(
             {
                 "topic": picked["topic"],
-                "notes": picked.get("notes") or "",
+                "notes": (picked.get("notes") or "")
+                + " Funny Hinglish. Golu and Pihu act every line.",
                 "format": fmt,
-                "style": settings.get("autopilot_style") or "explainer",
-                "target_seconds": 40 if fmt == "short" else 150,
-                "voice": settings.get("default_voice") or "local:en-us",
-                "visual_mood": settings.get("default_mood") or "ember",
+                "style": settings.get("autopilot_style") or "entertainment",
+                "language": lang,
+                "target_seconds": 38 if fmt == "short" else 120,
+                "voice": settings.get("default_voice") or "edge:hi-IN-MadhurNeural",
+                "visual_mood": settings.get("default_mood") or "magenta",
             }
         )
         update_autopilot_run(run["id"], project_id=project["id"])

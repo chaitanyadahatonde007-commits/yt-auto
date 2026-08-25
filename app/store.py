@@ -420,7 +420,33 @@ def last_successful_autopilot() -> dict[str, Any] | None:
     return dict(row) if row else None
 
 
+def recover_stale_autopilot(max_age_sec: int = 1500) -> int:
+    now = datetime.now(timezone.utc)
+    cleared = 0
+    with _LOCK, connect() as conn:
+        rows = conn.execute(
+            "SELECT id, created_at FROM autopilot WHERE status IN ('queued','running')"
+        ).fetchall()
+        for row in rows:
+            try:
+                created = datetime.fromisoformat(str(row["created_at"]).replace("Z", "+00:00"))
+                if created.tzinfo is None:
+                    created = created.replace(tzinfo=timezone.utc)
+                age = (now - created).total_seconds()
+            except Exception:
+                age = max_age_sec + 1
+            if age > max_age_sec:
+                conn.execute(
+                    "UPDATE autopilot SET status = ?, error = ?, message = ? WHERE id = ?",
+                    ("error", "Stale run cleared", "Stopped a stuck job so Autopilot can keep going", row["id"]),
+                )
+                cleared += 1
+        conn.commit()
+    return cleared
+
+
 def autopilot_busy() -> bool:
+    recover_stale_autopilot()
     with connect() as conn:
         row = conn.execute(
             "SELECT COUNT(*) AS n FROM autopilot WHERE status IN ('queued','running')"

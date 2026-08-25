@@ -252,7 +252,8 @@ async def render_visuals(
         photo = None
         source = "plate"
         raw = folder / f"{sid}_raw.jpg"
-        if i < 12:
+        still_budget = 4 if fmt == "short" else 8
+        if i < still_budget:
             ok = await generate_still(prompt, raw, aspect=aspect)
             if ok and raw.exists():
                 photo = Image.open(raw)
@@ -271,33 +272,27 @@ async def render_visuals(
         frame = render_scene_frame(project, scene, i, len(scenes), size, photo=photo)
         rel = f"scenes/{sid}.jpg"
         dest = root / rel
-        frame.save(dest, quality=92, optimize=True)
+        frame.save(dest, quality=90, optimize=True)
 
         clip_rel = None
         clip_kind = None
-        if i < 8:
+        if i < (6 if fmt == "short" else 8):
             candidates: list[tuple[str, Path]] = []
-            still_src = raw if raw.exists() else dest
             pex = motion_dir / f"{sid}_pexels.mp4"
             pix = motion_dir / f"{sid}_pixabay.mp4"
-            i2v = motion_dir / f"{sid}_i2v.mp4"
-            t2v = motion_dir / f"{sid}_t2v.mp4"
-            dur = max(4, min(8, int(round(float(scene.get("duration") or 5)))))
             if await pexels_video(prompt, pex, aspect=aspect, hint=hint, used=used_pexels, index=i):
                 candidates.append(("pexels", pex))
                 pexels_clips += 1
-            if await pixabay_video(prompt, pix, aspect=aspect, hint=hint, used=used_pixabay, index=i):
+            elif await pixabay_video(prompt, pix, aspect=aspect, hint=hint, used=used_pixabay, index=i):
                 candidates.append(("pixabay", pix))
                 pixabay_clips += 1
-            # AI motion only for the first two scenes, or if stock found nothing.
-            want_ai = (i < 2 or not candidates) and not video_blocked()
+            # Skip slow WaveSpeed video on Shorts so Autopilot can finish and stay up 24/7.
+            want_ai = fmt != "short" and not candidates and not video_blocked()
             if want_ai:
-                if progress:
-                    progress(i, total, f"Scene {i + 1}/{total}: trying WaveSpeed motion")
-                if await generate_video_i2v(prompt, still_src, i2v, duration=dur):
+                still_src = raw if raw.exists() else dest
+                i2v = motion_dir / f"{sid}_i2v.mp4"
+                if await generate_video_i2v(prompt, still_src, i2v, duration=5):
                     candidates.append(("i2v", i2v))
-                if not candidates and await generate_video_t2v(prompt, t2v, aspect=aspect, duration=dur):
-                    candidates.append(("t2v", t2v))
             winner = await pick_best_clip(candidates)
             if winner:
                 clip_kind, clip_path = winner

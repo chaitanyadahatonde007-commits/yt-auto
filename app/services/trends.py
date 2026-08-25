@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import re
 from datetime import datetime, timezone
 from typing import Any
@@ -164,7 +165,10 @@ async def discover_trends(region: str | None = None) -> list[dict[str, Any]]:
     settings = load_settings()
     region = region or settings.get("autopilot_region") or "IN"
     used = autopilot_used_topics()
-    buckets = await _gather(region)
+    try:
+        buckets = await asyncio.wait_for(_gather(region), timeout=6.0)
+    except Exception:
+        buckets = _entertainment_vault()
     seen: set[str] = set()
     unique: list[dict[str, Any]] = []
     for item in buckets:
@@ -244,7 +248,15 @@ def _prefer_entertainment(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 async def pick_topic(region: str | None = None) -> dict[str, Any]:
-    candidates = await discover_trends(region)
-    if not candidates:
-        candidates = _entertainment_vault()
-    return await _refine_topic(candidates[0])
+    used = {t.lower() for t in autopilot_used_topics()}
+    vault = [item for item in _entertainment_vault() if item["title"].lower() not in used]
+    try:
+        live = await asyncio.wait_for(discover_trends(region), timeout=5.0)
+    except Exception:
+        live = []
+    candidates = [item for item in (live + vault) if item["title"].lower() not in used] or vault or _entertainment_vault()
+    try:
+        return await asyncio.wait_for(_refine_topic(candidates[0]), timeout=8.0)
+    except Exception:
+        raw = candidates[0]
+        return {"topic": raw["title"], "source": raw.get("source") or "vault", "why": raw.get("why") or "", "notes": raw["title"]}

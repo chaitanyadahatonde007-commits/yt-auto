@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlencode
@@ -73,10 +74,21 @@ def save_credentials(creds) -> None:
     YOUTUBE_TOKEN_PATH.write_text(creds.to_json(), encoding="utf-8")
 
 
-def connected() -> dict[str, Any]:
+_YT_CACHE: dict[str, Any] = {"at": 0.0, "data": None}
+
+
+def connected(quick: bool = False) -> dict[str, Any]:
+    if quick:
+        return {"connected": YOUTUBE_TOKEN_PATH.exists()}
+    now = time.time()
+    cached = _YT_CACHE.get("data")
+    if cached is not None and now - float(_YT_CACHE.get("at") or 0) < 90:
+        return cached
     creds = load_credentials()
     if not creds:
-        return {"connected": False}
+        data = {"connected": False}
+        _YT_CACHE.update({"at": now, "data": data})
+        return data
     try:
         from googleapiclient.discovery import build
 
@@ -89,12 +101,14 @@ def connected() -> dict[str, Any]:
         res = youtube.channels().list(part="snippet,statistics", mine=True).execute()
         items = res.get("items") or []
         if not items:
-            return {"connected": True, "channel": None}
+            data = {"connected": True, "channel": None}
+            _YT_CACHE.update({"at": now, "data": data})
+            return data
         ch = items[0]
         snippet = ch.get("snippet") or {}
         stats = ch.get("statistics") or {}
         thumbs = snippet.get("thumbnails") or {}
-        return {
+        data = {
             "connected": True,
             "channel": {
                 "id": ch.get("id"),
@@ -104,8 +118,12 @@ def connected() -> dict[str, Any]:
                 "videos": stats.get("videoCount"),
             },
         }
+        _YT_CACHE.update({"at": now, "data": data})
+        return data
     except Exception as exc:
-        return {"connected": False, "error": str(exc)}
+        data = {"connected": YOUTUBE_TOKEN_PATH.exists(), "error": str(exc)}
+        _YT_CACHE.update({"at": now, "data": data})
+        return data
 
 
 def exchange_code(code: str, public_base: str | None = None) -> dict[str, Any]:

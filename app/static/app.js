@@ -26,11 +26,23 @@ let settings = {};
 let yt = { connected: false };
 
 async function api(path, opts = {}) {
-  const res = await fetch(path, {
-    headers: { "Content-Type": "application/json", ...(opts.headers || {}) },
-    method: opts.method || "GET",
-    body: opts.body ? JSON.stringify(opts.body) : undefined,
-  });
+  const ctrl = new AbortController();
+  const wait = opts.timeout || 15000;
+  const timer = setTimeout(() => ctrl.abort(), wait);
+  let res;
+  try {
+    res = await fetch(path, {
+      headers: { "Content-Type": "application/json", ...(opts.headers || {}) },
+      method: opts.method || "GET",
+      body: opts.body ? JSON.stringify(opts.body) : undefined,
+      signal: ctrl.signal,
+    });
+  } catch (err) {
+    clearTimeout(timer);
+    if (err && err.name === "AbortError") throw new Error("Request timed out");
+    throw err;
+  }
+  clearTimeout(timer);
   const text = await res.text();
   let data = null;
   try { data = text ? JSON.parse(text) : null; } catch { data = { detail: text }; }
@@ -83,17 +95,13 @@ function geminiUsage(p) {
 
 async function boot() {
   try {
-    [settings, yt] = await Promise.all([
-      api("/api/settings"),
-      api("/api/youtube/status").catch(() => ({ connected: false })),
-    ]);
-    const v = await api("/api/voices");
-    voices = v.voices || [];
+    settings = await api("/api/settings", { timeout: 8000 });
   } catch (err) {
-    app.innerHTML = `<p class="toast err">${esc(err.message)}</p>`;
-    return;
+    settings = {};
   }
   render();
+  api("/api/youtube/status", { timeout: 4000 }).then((data) => { yt = data || { connected: false }; }).catch(() => { yt = { connected: false }; });
+  api("/api/voices", { timeout: 6000 }).then((v) => { voices = v.voices || []; }).catch(() => {});
 }
 
 function render() {
@@ -436,13 +444,17 @@ async function watchJob(id, onTick) {
 }
 
 async function renderAutopilot() {
-  app.innerHTML = `<div class="kicker">Hands-off</div><div class="toprow"><h1>Autopilot</h1></div><p class="empty">Loading schedule…</p>`;
-  let pack;
+  const fallback = {
+    enabled: false, interval_hours: 2, daily_cap: 4, format: "short", style: "entertainment",
+    language: "hinglish", region: "IN", publish: "schedule", today: 0, busy: false, youtube: false,
+    next_slot: "", runs: [],
+  };
+  app.innerHTML = `<div class="kicker">Hands-off</div><div class="toprow"><h1>Autopilot</h1></div><p class="empty">Opening…</p>`;
+  let pack = fallback;
   try {
-    pack = await api("/api/autopilot");
+    pack = { ...fallback, ...(await api("/api/autopilot", { timeout: 5000 })) };
   } catch (err) {
-    app.innerHTML = `<div class="kicker">Hands-off</div><div class="toprow"><h1>Autopilot</h1></div><p class="toast err">${esc(err.message)}</p><p class="notice">If this is a missing table, restart <code>py -3 run.py</code>.</p>`;
-    return;
+    pack = { ...fallback, _err: err.message };
   }
   const on = !!pack.enabled;
   app.innerHTML = `
@@ -464,12 +476,13 @@ async function renderAutopilot() {
           <label class="field"><span>Max per day</span><input type="number" name="autopilot_daily_cap" min="1" max="12" value="${esc(pack.daily_cap || 4)}" /></label>
           <label class="field"><span>Format</span>${fieldSelect("autopilot_format", [["short", "Short 9:16"], ["long", "Long 16:9"]], pack.format)}</label>
           <label class="field"><span>Style</span>${fieldSelect("autopilot_style", STYLES, pack.style)}</label>
+          <label class="field"><span>Language</span>${fieldSelect("content_language", [["hinglish", "Hinglish"], ["hindi", "Hindi (Roman)"], ["english", "English"]], pack.language || "hinglish")}</label>
           <label class="field"><span>Region</span>${fieldSelect("autopilot_region", [["IN", "India"], ["US", "United States"], ["GB", "UK"]], pack.region)}</label>
           <label class="field"><span>When ready</span>${fieldSelect("autopilot_publish", [["schedule", "Schedule on YouTube"], ["private", "Upload private now"], ["unlisted", "Upload unlisted now"], ["public", "Upload public now"], ["none", "Only render, do not upload"]], pack.publish)}</label>
         </div>
         <button class="btn" type="submit">Save schedule</button>
         <p class="notice" style="margin-top:14px">Aaj ${esc(pack.today)} / ${esc(pack.daily_cap)} videos. Peak slots 9:00 · 13:00 · 18:30 · 21:00 IST. Next ${esc(String(pack.next_slot || "").replace("T", " ").slice(0, 16))}. YouTube ${pack.youtube ? "connected — publish automatic" : "not connected — pehle Channel mein Connect karo"}.</p>
-        <p class="toast" id="msg">${pack.busy ? "A video is being made now…" : ""}</p>
+        <p class="toast ${pack._err ? "err" : ""}" id="msg">${pack._err ? esc(pack._err) : (pack.busy ? "A video is being made now…" : "")}</p>
       </form>
       <aside class="panel">
         <div class="lbl">Famous right now</div>
