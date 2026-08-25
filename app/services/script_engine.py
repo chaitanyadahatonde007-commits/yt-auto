@@ -444,11 +444,13 @@ def _short_script(
     scenes = []
     for i, line in enumerate(lines):
         kind = "title" if i == 0 else "outro" if i == len(lines) - 1 else "stat" if i == 1 else "narration"
+        who = _speaker(line) or ("Golu" if i % 2 == 0 else "Pihu")
         scenes.append(
             {
                 "kind": kind,
                 "text": line if line.endswith((".", "!", "?")) else line + ".",
                 "on_screen": _on_screen(line, nice.upper()),
+                "character": who,
             }
         )
     return scenes
@@ -550,7 +552,7 @@ def normalize_script(data: dict[str, Any], project: dict[str, Any]) -> dict[str,
                 "kind": raw.get("kind") or "narration",
                 "text": text,
                 "on_screen": (raw.get("on_screen") or _on_screen(text, "SCENE")).strip(),
-                "character": (raw.get("character") or _speaker(text)).strip(),
+                "character": (raw.get("character") or _speaker(text) or ("Golu" if i % 2 == 0 else "Pihu")).strip(),
                 "visual_prompt": (raw.get("visual_prompt") or "").strip(),
                 "duration": round(float(raw.get("duration") or estimate_seconds(text)), 2),
             }

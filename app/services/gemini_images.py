@@ -104,11 +104,7 @@ async def generate_still(prompt: str, dest: Path, aspect: str = "16:9") -> bool:
     return False
 
 
-def visual_prompt_for(scene: dict[str, Any], project: dict[str, Any]) -> str:
-    if (scene.get("visual_prompt") or "").strip():
-        base = scene["visual_prompt"].strip()
-    else:
-        from app.services.characters import acting_prompt
+def visual_prompt_for(scene: dict[str, Any], project: dict[str, Any], index: int = 0) -> str:
+    from app.services.characters import acting_prompt
 
-        base = acting_prompt(scene, project)
-    return base
+    return acting_prompt(scene, project, index=index)

@@ -402,7 +402,7 @@ function stepHtml(p, step) {
     const scenes = p.visuals?.scenes || [];
     return `
       <label class="field"><span>Mood</span>${fieldSelect("visual_mood", MOODS.map((m) => [m, m]), p.visual_mood)}</label>
-      <p class="notice">${p.visuals ? `${p.visuals.gemini_images || 0} AI stills · ${(p.visuals.pexels_stills || 0) + (p.visuals.pixabay_stills || 0)} stock stills · ${p.visuals.motion_clips || 0} motion clips (stock first, then AI)${p.visuals.gemini_error ? " · " + esc(p.visuals.gemini_error) : ""}` : "Pexels + Pixabay pull real stock video first. WaveSpeed adds a short AI take on the first scenes. We keep the strongest clip."}</p>
+      <p class="notice">${p.visuals ? `${p.visuals.gemini_images || 0} character stills · ${p.visuals.motion_clips || 0} motion scenes · ${p.visuals.character_clips || 0} host motion${p.visuals.gemini_error ? " · " + esc(p.visuals.gemini_error) : ""}` : "Golu and Pihu stay on screen. Stock motion plus host cards, scene graphics, and a short AI take on the open."}</p>
       <div class="scene-strip">${scenes.map((s) => `<img src="${s.url}" alt="${esc(s.on_screen || "")}" title="${esc(s.source || "")}" />`).join("")}</div>
       <button class="btn primary" id="run-step" style="margin-top:14px">Design frames</button>
     `;

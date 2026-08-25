@@ -111,102 +111,76 @@ def render_scene_frame(
     total: int,
     size: tuple[int, int],
     photo: Image.Image | None = None,
+    host: Image.Image | None = None,
 ) -> Image.Image:
-    mood = project.get("visual_mood") or "ember"
+    from app.services.characters import make_graphics_overlay, speaker_of
+
+    mood = project.get("visual_mood") or "magenta"
     rng = _seed(project["id"], scene.get("id") or str(index))
     painted = photo is not None
     base = (photo or Image.open(_plate_path(mood, index))).convert("RGB")
-    # generate slightly larger for Ken Burns
-    frame = _fit_cover(base, (int(size[0] * 1.18), int(size[1] * 1.18)))
-    # unique crop origin
+    frame = _fit_cover(base, (int(size[0] * 1.14), int(size[1] * 1.14)))
     max_x = frame.width - size[0]
     max_y = frame.height - size[1]
     ox = rng.randint(0, max(0, max_x))
     oy = rng.randint(0, max(0, max_y))
     canvas = frame.crop((ox, oy, ox + size[0], oy + size[1])).convert("RGBA")
 
-    accent = MOOD_ACCENT.get(mood, (255, 72, 48))
-    kind = scene.get("kind") or "narration"
-    wash = 70 if painted else (118 if kind != "title" else 150)
-    dark = Image.new("RGBA", size, (6, 6, 10, wash))
-    canvas = Image.alpha_composite(canvas, dark)
+    wash = 36 if painted or host is not None else 88
+    canvas = Image.alpha_composite(canvas, Image.new("RGBA", size, (6, 6, 10, wash)))
 
-    # light slab
-    slab = Image.new("RGBA", size, (0, 0, 0, 0))
-    sd = ImageDraw.Draw(slab)
-    if kind == "title":
-        sd.rectangle((0, int(size[1] * 0.52), size[0], size[1]), fill=(8, 8, 12, 150))
-    elif kind == "outro":
-        sd.rectangle((int(size[0] * 0.08), int(size[1] * 0.32), int(size[0] * 0.92), int(size[1] * 0.72)), fill=(8, 8, 12, 160))
-    else:
-        sd.rectangle((0, 0, 14, size[1]), fill=accent + (220,))
-    canvas = Image.alpha_composite(canvas, slab)
+    if host is not None:
+        member = speaker_of(scene, index)
+        card_h = int(size[1] * (0.46 if size[1] > size[0] else 0.58))
+        card = host.convert("RGBA")
+        card.thumbnail((int(size[0] * 0.78), card_h), Image.Resampling.LANCZOS)
+        hx = (size[0] - card.width) // 2
+        hy = int(size[1] * 0.16)
+        canvas.paste(card, (hx, hy), card if card.mode == "RGBA" else None)
+        bar = Image.new("RGBA", size, (0, 0, 0, 0))
+        bd = ImageDraw.Draw(bar)
+        bd.rectangle((0, 0, 16, size[1]), fill=member["color"] + (230,))
+        canvas = Image.alpha_composite(canvas, bar)
 
-    draw = ImageDraw.Draw(canvas)
-    w, h = size
-    is_short = project.get("format") == "short"
-
-    kicker_size = 28 if not is_short else 34
-    display_size = 92 if not is_short else 86
-    if kind == "title":
-        display_size = 110 if not is_short else 96
-    if kind == "stat":
-        display_size = 120 if not is_short else 100
-
-    kicker_font = _load_font("Montserrat-SemiBold.ttf", kicker_size)
-    display_font = _load_font("BebasNeue.ttf", display_size)
-    body_font = _load_font("Inter-Medium.ttf", 26 if not is_short else 24)
-    small_font = _load_font("Inter-Regular.ttf", 20)
-
-    kicker = {
-        "title": "CHANNELFORGE  ·  OPEN",
-        "stat": "HOLD THIS",
-        "outro": "STAY IN THE ROOM",
-        "narration": f"SCENE {index + 1:02d} / {total:02d}",
-    }.get(kind, "SCENE")
-    if is_short:
-        kicker = kicker.replace("CHANNELFORGE  ·  OPEN", "WATCH THIS")
-
-    on_screen = (scene.get("on_screen") or "").upper()
-    topic = (project.get("topic") or "").upper()
-
-    margin = int(w * 0.07)
-    max_text_w = int(w * 0.86)
-    y = int(h * (0.18 if is_short else 0.16))
-    if kind == "title":
-        y = int(h * 0.38)
-    if kind == "outro":
-        y = int(h * 0.38)
-
-    draw.text((margin, int(h * 0.07)), kicker, font=kicker_font, fill=accent + (255,))
-
-    lines = _wrap(draw, on_screen, display_font, max_text_w)
-    if not lines:
-        lines = _wrap(draw, topic, display_font, max_text_w)
-    for line in lines:
-        draw.text((margin, y), line, font=display_font, fill=(244, 240, 232, 255))
-        y += display_size + 8
-
-    # gold rule
-    draw.rectangle((margin, y + 10, margin + 120, y + 16), fill=accent + (255,))
-
-    snippet = scene.get("text") or ""
-    if not is_short and not painted:
-        snippet_lines = _wrap(draw, snippet, body_font, int(w * 0.62))[:3]
-        sy = y + 36
-        for line in snippet_lines:
-            draw.text((margin, sy), line, font=body_font, fill=(226, 222, 214, 220))
-            sy += 34
-
-    draw.text((margin, h - 56), (project.get("title") or topic)[:42], font=small_font, fill=(200, 196, 188, 180))
-    draw.text((w - margin - 160, h - 56), "FORGE / AUTO", font=small_font, fill=(200, 196, 188, 160))
-
-    canvas = Image.alpha_composite(canvas, _vignette(size, 0.62))
-    canvas = Image.alpha_composite(canvas, _grain(size, rng, 22))
+    buf_dir = project_dir(project["id"]) / "overlays"
+    overlay_path = buf_dir / f"_preview_{index}.png"
+    make_graphics_overlay(size, scene, project, overlay_path, index, total)
+    overlay = Image.open(overlay_path).convert("RGBA")
+    canvas = Image.alpha_composite(canvas, overlay)
+    canvas = Image.alpha_composite(canvas, _vignette(size, 0.48))
+    canvas = Image.alpha_composite(canvas, _grain(size, rng, 16))
     rgb = canvas.convert("RGB")
-    rgb = ImageEnhance.Contrast(rgb).enhance(1.08)
-    rgb = ImageEnhance.Color(rgb).enhance(1.04)
+    rgb = ImageEnhance.Contrast(rgb).enhance(1.1)
+    rgb = ImageEnhance.Color(rgb).enhance(1.08)
     return rgb
+
+
+async def _safe_still(coro, timeout: float) -> bool:
+    try:
+        return bool(await asyncio.wait_for(coro, timeout=timeout))
+    except Exception:
+        return False
+
+
+async def _ensure_portraits(project: dict[str, Any], root: Path) -> dict[str, Path]:
+    from app.services.characters import CAST, draw_mascot, portrait_prompt
+    from app.services.gemini_images import generate_still
+
+    folder = root / "cast"
+    folder.mkdir(exist_ok=True)
+    out: dict[str, Path] = {}
+    for member in CAST:
+        dest = folder / f"{member['id']}.jpg"
+        fallback = folder / f"{member['id']}_mascot.png"
+        if not fallback.exists():
+            draw_mascot(member["name"]).save(fallback)
+        if not dest.exists():
+            ok = await _safe_still(generate_still(portrait_prompt(member), dest, aspect="9:16"), 22)
+            if not ok or not dest.exists():
+                Image.open(fallback).convert("RGB").save(dest, quality=90)
+        out[member["name"]] = dest
+        out[member["id"]] = dest
+    return out
 
 
 async def render_visuals(
@@ -214,12 +188,12 @@ async def render_visuals(
     scenes: list[dict[str, Any]],
     progress: Callable[[int, int, str], None] | None = None,
 ) -> dict[str, Any]:
+    from app.services.characters import make_graphics_overlay, make_host_card, speaker_of
     from app.services.gemini_images import generate_still, last_image_error, visual_prompt_for
     from app.services.pexels import fetch_still as pexels_still, fetch_video as pexels_video, last_error as pexels_error
     from app.services.pixabay import fetch_still as pixabay_still, fetch_video as pixabay_video, last_error as pixabay_error
     from app.services.wavespeed import (
         generate_video_i2v,
-        generate_video_t2v,
         last_error as ws_error,
         pick_best_clip,
         video_blocked,
@@ -233,6 +207,9 @@ async def render_visuals(
     folder.mkdir(parents=True, exist_ok=True)
     motion_dir = root / "motion"
     motion_dir.mkdir(exist_ok=True)
+    overlay_dir = root / "overlays"
+    overlay_dir.mkdir(exist_ok=True)
+    portraits = await _ensure_portraits(project, root)
     outputs = []
     painted_n = 0
     pexels_stills = 0
@@ -240,84 +217,89 @@ async def render_visuals(
     pexels_clips = 0
     pixabay_clips = 0
     motion_n = 0
+    i2v_n = 0
     last_err = None
     used_pexels: set[int] = set()
     used_pixabay: set[int] = set()
     total = max(1, len(scenes))
     for i, scene in enumerate(scenes):
         if progress:
-            progress(i, total, f"Scene {i + 1}/{total}: stills and motion")
+            progress(i, total, f"Scene {i + 1}/{total}: character, motion, graphics")
         sid = scene.get("id") or f"sc{i+1:02d}"
-        prompt = visual_prompt_for(scene, project)
-        hint = scene.get("on_screen") or project.get("topic") or ""
+        member = speaker_of(scene, i)
+        prompt = visual_prompt_for(scene, project, index=i)
+        hint = " ".join(
+            part
+            for part in (
+                member["name"],
+                scene.get("on_screen") or "",
+                project.get("topic") or "",
+                "people talking comedy street india",
+            )
+            if part
+        )
         photo = None
         source = "plate"
         raw = folder / f"{sid}_raw.jpg"
-        still_budget = 3 if fmt == "short" else 8
+        still_budget = 4 if fmt == "short" else 8
         if i < still_budget:
-            # Shorts stay on stock/plates so Autopilot cannot hang on WaveSpeed/Gemini.
-            want_ai = fmt != "short"
-            ok = False
-            if want_ai:
-                try:
-                    ok = await asyncio.wait_for(generate_still(prompt, raw, aspect=aspect), timeout=28)
-                except Exception:
-                    ok = False
+            ok = await _safe_still(generate_still(prompt, raw, aspect=aspect), 22)
             if ok and raw.exists():
                 photo = Image.open(raw)
                 source = "ai"
                 painted_n += 1
-            elif await pexels_still(prompt, raw, aspect=aspect, hint=hint, index=i) and raw.exists():
+            elif await _safe_still(pexels_still(prompt, raw, aspect=aspect, hint=hint, index=i), 12) and raw.exists():
                 photo = Image.open(raw)
                 source = "pexels"
                 pexels_stills += 1
-            elif await pixabay_still(prompt, raw, aspect=aspect, hint=hint, index=i) and raw.exists():
+            elif await _safe_still(pixabay_still(prompt, raw, aspect=aspect, hint=hint, index=i), 12) and raw.exists():
                 photo = Image.open(raw)
                 source = "pixabay"
                 pixabay_stills += 1
             else:
                 last_err = last_image_error() or pexels_error() or pixabay_error()
-        frame = render_scene_frame(project, scene, i, len(scenes), size, photo=photo)
+
+        portrait = None
+        port_path = portraits.get(member["name"])
+        if port_path and port_path.exists():
+            portrait = Image.open(port_path)
+        host_rel = f"overlays/{sid}_host.png"
+        make_host_card(photo or portrait, member["name"], root / host_rel, height=760 if fmt == "short" else 640)
+        overlay_rel = f"overlays/{sid}_gfx.png"
+        make_graphics_overlay(size, scene, project, root / overlay_rel, i, len(scenes))
+
+        frame = render_scene_frame(
+            project,
+            scene,
+            i,
+            len(scenes),
+            size,
+            photo=photo,
+            host=Image.open(root / host_rel),
+        )
         rel = f"scenes/{sid}.jpg"
         dest = root / rel
         frame.save(dest, quality=90, optimize=True)
 
         clip_rel = None
         clip_kind = None
-        if i < (4 if fmt == "short" else 8):
+        if i < (5 if fmt == "short" else 8):
             candidates: list[tuple[str, Path]] = []
             pex = motion_dir / f"{sid}_pexels.mp4"
             pix = motion_dir / f"{sid}_pixabay.mp4"
-            got_pex = False
-            try:
-                got_pex = await asyncio.wait_for(
-                    pexels_video(prompt, pex, aspect=aspect, hint=hint, used=used_pexels, index=i),
-                    timeout=18,
-                )
-            except Exception:
-                got_pex = False
-            if got_pex:
+            if await _safe_still(pexels_video(prompt, pex, aspect=aspect, hint=hint, used=used_pexels, index=i), 16):
                 candidates.append(("pexels", pex))
                 pexels_clips += 1
-            else:
-                got_pix = False
-                try:
-                    got_pix = await asyncio.wait_for(
-                        pixabay_video(prompt, pix, aspect=aspect, hint=hint, used=used_pixabay, index=i),
-                        timeout=18,
-                    )
-                except Exception:
-                    got_pix = False
-                if got_pix:
-                    candidates.append(("pixabay", pix))
-                    pixabay_clips += 1
-            # Skip slow WaveSpeed video on Shorts so Autopilot can finish and stay up 24/7.
-            want_ai = fmt != "short" and not candidates and not video_blocked()
-            if want_ai:
+            elif await _safe_still(pixabay_video(prompt, pix, aspect=aspect, hint=hint, used=used_pixabay, index=i), 16):
+                candidates.append(("pixabay", pix))
+                pixabay_clips += 1
+            # Character motion: first two scenes only, hard timeout so Autopilot still finishes.
+            if i < 2 and not video_blocked():
                 still_src = raw if raw.exists() else dest
                 i2v = motion_dir / f"{sid}_i2v.mp4"
-                if await generate_video_i2v(prompt, still_src, i2v, duration=5):
+                if await _safe_still(generate_video_i2v(prompt, still_src, i2v, duration=5), 40):
                     candidates.append(("i2v", i2v))
+                    i2v_n += 1
             winner = await pick_best_clip(candidates)
             if winner:
                 clip_kind, clip_path = winner
@@ -334,6 +316,9 @@ async def render_visuals(
                 "path": rel,
                 "clip": clip_rel,
                 "clip_kind": clip_kind,
+                "host": host_rel,
+                "overlay": overlay_rel,
+                "character": member["name"],
                 "kind": scene.get("kind"),
                 "on_screen": scene.get("on_screen"),
                 "visual_prompt": prompt,
@@ -352,5 +337,6 @@ async def render_visuals(
         "pexels_clips": pexels_clips,
         "pixabay_clips": pixabay_clips,
         "motion_clips": motion_n,
+        "character_clips": i2v_n,
         "gemini_error": last_err,
     }

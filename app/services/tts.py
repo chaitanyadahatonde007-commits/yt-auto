@@ -157,44 +157,163 @@ async def synthesize(project: dict[str, Any], text: str, voice_id: str | None = 
     lang = (project.get("language") or "").lower()
     if not voice_id or (lang in {"hinglish", "hindi"} and voice_id.startswith("local:en")):
         voice_id = "edge:hi-IN-MadhurNeural"
+    scenes = ((project.get("script") or {}).get("scenes")) or []
+    if scenes:
+        try:
+            return await _dialogue_synthesize(project, scenes)
+        except Exception as exc:
+            print("dialogue TTS failed, single voice:", exc)
+    return await _single_synthesize(project, text, voice_id)
+
+
+def _naturalize(text: str) -> str:
+    from app.services.characters import spoken_line
+
+    line = spoken_line(text)
+    line = re.sub(r"\s+", " ", line).strip()
+    if line and line[-1] not in ".!?":
+        line += "."
+    return line
+
+
+async def _dialogue_synthesize(project: dict[str, Any], scenes: list[dict[str, Any]]) -> dict[str, Any]:
+    from app.services.characters import speaker_of, spoken_line
+
+    folder = project_dir(project["id"])
+    parts: list[Path] = []
+    words: list[dict[str, Any]] = []
+    t = 0.0
+    used_voices: list[str] = []
+    for i, scene in enumerate(scenes):
+        member = speaker_of(scene, i)
+        line = _naturalize(spoken_line(scene.get("text") or ""))
+        if not line:
+            continue
+        part = folder / f"voice_{i:02d}.wav"
+        await _speak_character(line, member, part)
+        dur = await ffprobe_duration(part)
+        if dur < 0.25:
+            raise RuntimeError("character line too short")
+        chunk = align_words(spoken_line(scene.get("text") or line), dur)
+        for item in chunk:
+            item["start"] = round(float(item["start"]) + t, 3)
+            item["end"] = round(float(item["end"]) + t, 3)
+            item["speaker"] = member["name"]
+        words.extend(chunk)
+        parts.append(part)
+        used_voices.append(member["voice"])
+        t += dur
+        if i < len(scenes) - 1:
+            gap = folder / f"voice_{i:02d}_gap.wav"
+            _write_silence(gap, 0.17)
+            parts.append(gap)
+            t += 0.17
+    if not parts:
+        raise RuntimeError("no spoken lines")
+    wav_path = folder / "voice.wav"
+    await _concat_wavs(parts, wav_path)
+    duration = await ffprobe_duration(wav_path)
+    spoken = " ".join(spoken_line(s.get("text") or "") for s in scenes)
+    return {
+        "path": "voice.wav",
+        "duration": round(duration, 3),
+        "voice": "cast:golu+pihu",
+        "engine": "edge-cast",
+        "words": words,
+        "word_count": word_count(spoken),
+        "cast": used_voices,
+    }
+
+
+async def _speak_character(text: str, member: dict[str, Any], dest: Path) -> None:
+    raw = dest.with_suffix(".mp3")
+    try:
+        await _edge(text, member["voice"], raw, rate=member.get("rate") or "+6%", pitch=member.get("pitch") or "+0Hz")
+        await _to_wav(raw, dest)
+        return
+    except Exception as exc:
+        print("edge character voice failed:", member["name"], exc)
+    lang = "hi"
+    await _gtts(text, raw, lang=lang)
+    await _to_wav(raw, dest)
+
+
+def _write_silence(dest: Path, seconds: float, rate: int = 44100) -> None:
+    n = max(1, int(rate * seconds))
+    with wave.open(str(dest), "wb") as wf:
+        wf.setnchannels(1)
+        wf.setsampwidth(2)
+        wf.setframerate(rate)
+        wf.writeframes(b"\x00\x00" * n)
+
+
+async def _concat_wavs(parts: list[Path], dest: Path) -> None:
+    listing = dest.parent / "_voice_concat.txt"
+    listing.write_text("".join(f"file '{p.resolve().as_posix()}'\n" for p in parts), encoding="utf-8")
+    proc = await asyncio.create_subprocess_exec(
+        ffmpeg_exe(),
+        "-nostdin",
+        "-y",
+        "-f",
+        "concat",
+        "-safe",
+        "0",
+        "-i",
+        str(listing),
+        "-ac",
+        "1",
+        "-ar",
+        "44100",
+        str(dest),
+        stdin=asyncio.subprocess.DEVNULL,
+        stdout=asyncio.subprocess.DEVNULL,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    _, err = await proc.communicate()
+    if proc.returncode != 0 or not dest.exists():
+        raise RuntimeError(err.decode("utf-8", errors="ignore")[-400:] or "voice concat failed")
+
+
+async def _single_synthesize(project: dict[str, Any], text: str, voice_id: str) -> dict[str, Any]:
     folder = project_dir(project["id"])
     wav_path = folder / "voice.wav"
     raw_path = folder / "voice_raw"
     last_error = None
-
+    spoken = _naturalize(text)
     engines = _engine_order(voice_id)
     for engine, spec in engines:
         try:
             if engine == "edge":
-                words = await _edge(text, spec, raw_path.with_suffix(".mp3"))
+                rate = "+8%" if "hi-" in str(spec) else "+4%"
+                words = await _edge(spoken, spec, raw_path.with_suffix(".mp3"), rate=rate, pitch="+2Hz")
                 await _to_wav(raw_path.with_suffix(".mp3"), wav_path)
             elif engine == "openai":
-                await _openai(text, spec, raw_path.with_suffix(".mp3"))
+                await _openai(spoken, spec, raw_path.with_suffix(".mp3"))
                 await _to_wav(raw_path.with_suffix(".mp3"), wav_path)
                 words = None
             elif engine == "groq":
-                await _groq_tts(text, spec, raw_path.with_suffix(".wav"))
+                await _groq_tts(spoken, spec, raw_path.with_suffix(".wav"))
                 await _to_wav(raw_path.with_suffix(".wav"), wav_path)
                 words = None
             elif engine == "gtts":
                 lang = "hi" if "hi" in voice_id or spec == "hi" else "en"
-                await _gtts(text, raw_path.with_suffix(".mp3"), lang=lang)
+                await _gtts(spoken, raw_path.with_suffix(".mp3"), lang=lang)
                 await _to_wav(raw_path.with_suffix(".mp3"), wav_path)
                 words = None
             else:
-                await _espeak(text, spec, wav_path)
+                await _espeak(spoken, spec, wav_path)
                 words = None
             duration = await ffprobe_duration(wav_path)
             if duration < 0.4:
                 raise RuntimeError("voice file too short")
-            aligned = words if words else align_words(text, duration)
+            aligned = words if words else align_words(spoken, duration)
             return {
                 "path": "voice.wav",
                 "duration": round(duration, 3),
                 "voice": voice_id,
                 "engine": engine,
                 "words": aligned,
-                "word_count": word_count(text),
+                "word_count": word_count(spoken),
             }
         except Exception as exc:
             last_error = exc
@@ -235,11 +354,20 @@ def _engine_order(voice_id: str) -> list[tuple[str, Any]]:
     return order
 
 
-async def _edge(text: str, voice: str, dest: Path) -> list[dict[str, Any]]:
+async def _edge(
+    text: str,
+    voice: str,
+    dest: Path,
+    rate: str = "+0%",
+    pitch: str = "+0Hz",
+) -> list[dict[str, Any]]:
     import edge_tts
 
     dest.parent.mkdir(parents=True, exist_ok=True)
-    communicate = edge_tts.Communicate(text, voice)
+    try:
+        communicate = edge_tts.Communicate(text, voice, rate=rate, pitch=pitch)
+    except TypeError:
+        communicate = edge_tts.Communicate(text, voice)
     words: list[dict[str, Any]] = []
     with dest.open("wb") as handle:
         async def _run() -> None:

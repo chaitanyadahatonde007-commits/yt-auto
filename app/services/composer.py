@@ -155,43 +155,56 @@ async def _from_video(
     dest: Path,
     duration: float,
     size: tuple[int, int],
+    host: Path | None = None,
+    overlay: Path | None = None,
 ) -> None:
     duration = max(1.2, duration)
     w, h = size
     fade = min(0.28, duration / 6)
     fade_out = max(0.0, duration - fade)
-    vf = (
-        f"scale={w}:{h}:force_original_aspect_ratio=increase,"
-        f"crop={w}:{h},"
-        f"fade=t=in:st=0:d={fade:.2f},"
-        f"fade=t=out:st={fade_out:.2f}:d={fade:.2f},"
-        f"format=yuv420p"
+    args = ["-y", "-stream_loop", "-1", "-i", str(source), "-t", f"{duration:.3f}"]
+    filters = [
+        f"[0:v]scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h},eq=contrast=1.06:saturation=1.1[bg]"
+    ]
+    last = "bg"
+    idx = 1
+    if host and host.exists():
+        args += ["-loop", "1", "-i", str(host), "-t", f"{duration:.3f}"]
+        host_h = int(h * 0.40) // 2 * 2
+        filters.append(f"[{idx}:v]format=rgba,scale=-2:{host_h}[host]")
+        filters.append(
+            f"[{last}][host]overlay=x='(W-w)/2':y='H-h-{int(h * 0.22)}+6*sin(2*PI*t/2.2)':format=auto[mid]"
+        )
+        last = "mid"
+        idx += 1
+    if overlay and overlay.exists():
+        args += ["-loop", "1", "-i", str(overlay), "-t", f"{duration:.3f}"]
+        filters.append(f"[{idx}:v]format=rgba[ov]")
+        filters.append(f"[{last}][ov]overlay=0:0:format=auto[outv]")
+        last = "outv"
+        idx += 1
+    filters.append(
+        f"[{last}]fade=t=in:st=0:d={fade:.2f},fade=t=out:st={fade_out:.2f}:d={fade:.2f},format=yuv420p[v]"
     )
-    await _run_ffmpeg(
-        [
-            "-y",
-            "-stream_loop",
-            "-1",
-            "-i",
-            str(source),
-            "-t",
-            f"{duration:.3f}",
-            "-vf",
-            vf,
-            "-r",
-            "30",
-            "-c:v",
-            "libx264",
-            "-preset",
-            "veryfast",
-            "-crf",
-            "19",
-            "-pix_fmt",
-            "yuv420p",
-            "-an",
-            str(dest),
-        ]
-    )
+    args += [
+        "-filter_complex",
+        ";".join(filters),
+        "-map",
+        "[v]",
+        "-r",
+        "30",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "veryfast",
+        "-crf",
+        "19",
+        "-pix_fmt",
+        "yuv420p",
+        "-an",
+        str(dest),
+    ]
+    await _run_ffmpeg(args)
 
 
 async def _make_bgm(dest: Path, duration: float) -> None:
@@ -241,10 +254,19 @@ async def compose_video(project: dict[str, Any]) -> dict[str, Any]:
         dest = clips_dir / f"{scene.get('id') or i:02}.mp4"
         motion = vis.get("clip")
         motion_path = folder / motion if motion else None
+        host = folder / vis["host"] if vis.get("host") else None
+        overlay = folder / vis["overlay"] if vis.get("overlay") else None
         if motion_path and motion_path.exists() and motion_path.stat().st_size > 8000:
-            await _from_video(motion_path, dest, float(scene.get("duration") or 3), size)
+            await _from_video(
+                motion_path,
+                dest,
+                float(scene.get("duration") or 3),
+                size,
+                host=host,
+                overlay=overlay,
+            )
         else:
-            await _scene_clip(image, dest, float(scene.get("duration") or 3), size, i, scene.get("text") or "")
+            await _scene_clip(image, dest, float(scene.get("duration") or 3), size, i, "")
         clip_paths.append(dest)
 
     list_file = clips_dir / "concat.txt"
