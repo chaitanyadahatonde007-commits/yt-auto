@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import random
 import re
@@ -125,7 +126,11 @@ async def render_thumbnails(project: dict[str, Any]) -> dict[str, Any]:
         f"YouTube entertainment thumbnail photograph for '{title}' about {topic}. "
         "One face or one object, cinematic lighting, high contrast, no text, no letters."
     )
-    if await generate_still(prompt, raw, aspect="16:9"):
+    try:
+        painted = await asyncio.wait_for(generate_still(prompt, raw, aspect="16:9"), timeout=25)
+    except Exception:
+        painted = False
+    if painted:
         photo = Image.open(raw)
         source = "gemini"
     else:

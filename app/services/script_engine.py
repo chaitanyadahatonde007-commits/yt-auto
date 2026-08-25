@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import re
 from typing import Any
@@ -584,7 +585,10 @@ async def write_script(project: dict[str, Any], research: dict[str, Any] | None)
         from app.config import load_settings
 
         project["language"] = load_settings().get("content_language") or "hinglish"
-    llm = await generate_script_llm(_brief(project, research))
+    try:
+        llm = await asyncio.wait_for(generate_script_llm(_brief(project, research)), timeout=28)
+    except Exception:
+        llm = None
     if llm:
         llm["engine"] = llm.get("engine") or "llm"
         return normalize_script(llm, project)

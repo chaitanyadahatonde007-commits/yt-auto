@@ -17,7 +17,9 @@ from app.store import (
     autopilot_count_today,
     create_job,
     create_project,
+    last_autopilot_run,
     last_successful_autopilot,
+    latest_job,
     list_autopilot_runs,
     recover_stale_autopilot,
     update_autopilot_run,
@@ -85,6 +87,13 @@ def status_payload() -> dict[str, Any]:
         nxt = next_slot().isoformat()
     except Exception:
         nxt = ""
+    job = None
+    try:
+        pid = (runs[0].get("project_id") if runs else None) or (last or {}).get("project_id")
+        if pid:
+            job = latest_job(pid)
+    except Exception:
+        job = None
     return {
         "enabled": bool(settings.get("autopilot_enabled")),
         "interval_hours": int(settings.get("autopilot_interval_hours") or 6),
@@ -101,6 +110,7 @@ def status_payload() -> dict[str, Any]:
         "last": last,
         "next_slot": nxt,
         "runs": runs,
+        "job": job,
         "why_idle": _why_idle(settings, today, busy),
         "note": "4 funny Hinglish shorts a day. Leave py -3 run.py open. Videos auto-schedule at 9:00, 13:00, 18:30, 21:00 IST.",
     }
@@ -114,6 +124,17 @@ def _why_idle(settings: dict[str, Any], today: int, busy: bool) -> str:
     cap = int(settings.get("autopilot_daily_cap") or 4)
     if today >= cap:
         return f"Daily cap reached ({today}/{cap})."
+    last_any = last_autopilot_run()
+    if last_any and last_any.get("status") == "error":
+        try:
+            created = datetime.fromisoformat(str(last_any["created_at"]).replace("Z", "+00:00"))
+            if created.tzinfo is None:
+                created = created.replace(tzinfo=timezone.utc)
+            left = 3 * 60 - (datetime.now(timezone.utc) - created).total_seconds()
+            if left > 0:
+                return f"Last cut failed. Retry in {int(left // 60) + 1} min. {last_any.get('error') or ''}".strip()
+        except Exception:
+            pass
     last = last_successful_autopilot()
     if last:
         try:
@@ -135,18 +156,26 @@ def _due(settings: dict[str, Any]) -> bool:
         return False
     if autopilot_count_today() >= int(settings.get("autopilot_daily_cap") or 4):
         return False
+    last_any = last_autopilot_run()
+    if last_any and last_any.get("status") == "error":
+        try:
+            created = datetime.fromisoformat(str(last_any["created_at"]).replace("Z", "+00:00"))
+            if created.tzinfo is None:
+                created = created.replace(tzinfo=timezone.utc)
+            if datetime.now(timezone.utc) - created < timedelta(minutes=3):
+                return False
+        except Exception:
+            pass
     last = last_successful_autopilot()
     if not last:
         return True
-    # Catch up to 4/day. 75 minutes between cuts so WaveSpeed can breathe.
     try:
         created = datetime.fromisoformat(last["created_at"].replace("Z", "+00:00"))
         if created.tzinfo is None:
             created = created.replace(tzinfo=timezone.utc)
     except Exception:
         return True
-    wait = 20
-    return datetime.now(timezone.utc) - created >= timedelta(minutes=wait)
+    return datetime.now(timezone.utc) - created >= timedelta(minutes=20)
 
 
 async def run_cycle(force: bool = False) -> dict[str, Any]:
@@ -191,21 +220,34 @@ async def _run_locked(settings: dict[str, Any]) -> dict[str, Any]:
 
         scheduled_for = None
         yt_result = None
-        if publish_mode in {"private", "unlisted", "public", "schedule"} and connected().get("connected"):
-            if publish_mode == "schedule":
-                when = next_slot()
-                scheduled_for = when.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-                yt_result = upload_video(project, privacy="private", publish_at=scheduled_for)
-                status = "scheduled"
-                message = f"Queued on YouTube for {when.strftime('%d %b %I:%M %p')} IST"
-            else:
-                yt_result = upload_video(project, privacy=publish_mode)
-                status = "published"
-                message = f"Uploaded as {publish_mode}"
-            project["youtube"] = yt_result
-            from app.store import save_project
+        yt_ok = False
+        try:
+            yt_ok = bool((await asyncio.wait_for(asyncio.to_thread(connected), timeout=20)).get("connected"))
+        except Exception as exc:
+            print("Autopilot YouTube status:", exc)
+            yt_ok = False
+        if publish_mode in {"private", "unlisted", "public", "schedule"} and yt_ok:
+            try:
+                if publish_mode == "schedule":
+                    when = next_slot()
+                    scheduled_for = when.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+                    yt_result = await asyncio.to_thread(
+                        upload_video, project, "private", scheduled_for
+                    )
+                    status = "scheduled"
+                    message = f"Queued on YouTube for {when.strftime('%d %b %I:%M %p')} IST"
+                else:
+                    yt_result = await asyncio.to_thread(upload_video, project, publish_mode, None)
+                    status = "published"
+                    message = f"Uploaded as {publish_mode}"
+                project["youtube"] = yt_result
+                from app.store import save_project
 
-            save_project(project)
+                save_project(project)
+            except Exception as exc:
+                print("Autopilot YouTube upload failed:", exc)
+                status = "ready"
+                message = f"Video ready. YouTube upload failed: {exc}"
         else:
             status = "ready"
             message = "Video ready. Connect YouTube to auto-upload, or publish from the studio."
@@ -233,13 +275,20 @@ def get_fresh(run_id: str) -> dict[str, Any] | None:
 
 async def scheduler_loop() -> None:
     print("Autopilot scheduler live")
+    warned_off = False
     await asyncio.sleep(2)
     while True:
         try:
-            recover_stale_autopilot(max_age_sec=480)
+            if not _LOCK.locked():
+                recover_stale_autopilot(max_age_sec=1800)
             settings = load_settings()
             if settings.get("autopilot_enabled") and _due(settings) and not _LOCK.locked():
+                print("Autopilot launching a cut")
                 asyncio.create_task(_safe_cycle())
+                warned_off = False
+            elif not settings.get("autopilot_enabled") and not warned_off:
+                print("Autopilot is off. Click Start autopilot.")
+                warned_off = True
         except Exception as exc:
             print("Autopilot tick:", exc)
         await asyncio.sleep(20)

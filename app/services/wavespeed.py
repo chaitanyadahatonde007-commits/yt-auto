@@ -59,7 +59,14 @@ async def _poll(client: httpx.AsyncClient, result_url: str, tries: int = 60, wai
     raise RuntimeError("WaveSpeed timed out")
 
 
-async def _run_model(client: httpx.AsyncClient, model: str, payload: dict[str, Any], dest: Path) -> bool:
+async def _run_model(
+    client: httpx.AsyncClient,
+    model: str,
+    payload: dict[str, Any],
+    dest: Path,
+    tries: int = 60,
+    wait: float = 3.0,
+) -> bool:
     submit = await client.post(
         f"https://api.wavespeed.ai/api/v3/{model}",
         headers=_headers(),
@@ -76,7 +83,7 @@ async def _run_model(client: httpx.AsyncClient, model: str, payload: dict[str, A
     )
     if not result_url:
         raise RuntimeError(f"{model}: no prediction id")
-    result = await _poll(client, result_url)
+    result = await _poll(client, result_url, tries=tries, wait=wait)
     outputs = result.get("outputs") or []
     url = outputs[0] if outputs else None
     if isinstance(url, dict):
@@ -111,6 +118,8 @@ async def generate_still(prompt: str, dest: Path, aspect: str = "16:9") -> bool:
                         model,
                         {"prompt": clean, "size": _size(aspect), "output_format": "jpeg"},
                         dest,
+                        tries=16,
+                        wait=2.0,
                     )
                     return True
                 except WaveSpeedFatal as exc:
@@ -213,12 +222,14 @@ async def motion_score(path: Path) -> float:
     tmp.mkdir(exist_ok=True)
     proc = await asyncio.create_subprocess_exec(
         ffmpeg_exe(),
+        "-nostdin",
         "-y",
         "-i",
         str(path),
         "-vf",
         "fps=2,scale=160:-1",
         str(tmp / "f%02d.jpg"),
+        stdin=asyncio.subprocess.DEVNULL,
         stdout=asyncio.subprocess.DEVNULL,
         stderr=asyncio.subprocess.DEVNULL,
     )

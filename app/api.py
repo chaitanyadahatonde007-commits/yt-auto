@@ -72,8 +72,8 @@ def _launch(background: BackgroundTasks, coro) -> None:
     async def _runner() -> None:
         try:
             await coro
-        except Exception:
-            pass
+        except Exception as exc:
+            print("background job failed:", exc)
 
     background.add_task(_runner)
 

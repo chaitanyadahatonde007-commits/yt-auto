@@ -127,7 +127,7 @@ async def _groq(brief: str, settings: dict[str, Any]) -> dict[str, Any] | None:
     errors: list[str] = []
     key = settings["groq_api_key"].strip()
     try:
-        async with httpx.AsyncClient(timeout=60.0) as client:
+        async with httpx.AsyncClient(timeout=22.0) as client:
             for model in models:
                 res = await client.post(
                     "https://api.groq.com/openai/v1/chat/completions",

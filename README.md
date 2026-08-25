@@ -86,15 +86,29 @@ The writer stays honest: it will not invent statistics. Without a key it still p
 
 ## Autopilot
 
-Open **Autopilot** in the studio.
+Daily Hinglish comedy channel. Golu and Pihu act every line. 4 shorts a day, scheduled at **9:00 · 13:00 · 18:30 · 21:00 IST**.
 
-1. Turn **Start autopilot** on
-2. Leave `py -3 run.py` running
-3. ChannelForge reads YouTube / Google Trends / Reddit / Wikipedia, picks a famous topic, generates the video, and either schedules it on YouTube (9am / 1pm / 7pm IST) or only renders it
+On Windows CMD, type these lines one at a time. Do not paste a markdown link.
 
-**Make one now** does a single unattended cut immediately.
+```
+cd /d C:\Users\hp\OneDrive\ドキュメント\GitHub\yt-auto
+git fetch origin
+git reset --hard origin/arena/01a03231-yt-auto
+py -3 run.py
+```
 
-The PC must stay on and the studio window must stay open for the schedule to fire.
+If git asks `Deletion of directory ... Should I try again? (y/n)`, type `n` then Enter. Then run `git fetch origin` and `git reset --hard origin/arena/01a03231-yt-auto` again. Never type `py -3 run.py` at that y/n prompt.
+
+Then:
+
+1. Open http://localhost:8000/#/autopilot
+2. Hard refresh with Ctrl+F5
+3. Autopilot starts itself. Or click **Start autopilot**, then **Make one now**
+4. Leave that CMD window open 24/7. PC must stay on. Ctrl+C stops the studio
+
+CMD should print `Autopilot scheduler live` then `Autopilot topic: ...`.
+
+If YouTube is connected, finished shorts are scheduled at the next peak IST slot. If YouTube is not connected, the MP4 is still saved in Library.
 
 ## Connect YouTube
 

@@ -403,13 +403,25 @@ def autopilot_used_topics() -> set[str]:
 
 
 def autopilot_count_today() -> int:
-    day = utcnow()[:10]
+    from datetime import timedelta
+
+    ist = timezone(timedelta(hours=5, minutes=30))
+    today = datetime.now(ist).date()
+    n = 0
     with connect() as conn:
-        row = conn.execute(
-            "SELECT COUNT(*) AS n FROM autopilot WHERE created_at LIKE ? AND status NOT IN ('error','skipped')",
-            (f"{day}%",),
-        ).fetchone()
-    return int(row["n"] if row else 0)
+        rows = conn.execute(
+            "SELECT created_at FROM autopilot WHERE status NOT IN ('error','skipped')"
+        ).fetchall()
+    for row in rows:
+        try:
+            when = datetime.fromisoformat(str(row["created_at"]).replace("Z", "+00:00"))
+            if when.tzinfo is None:
+                when = when.replace(tzinfo=timezone.utc)
+            if when.astimezone(ist).date() == today:
+                n += 1
+        except Exception:
+            continue
+    return n
 
 
 def last_successful_autopilot() -> dict[str, Any] | None:
@@ -420,7 +432,13 @@ def last_successful_autopilot() -> dict[str, Any] | None:
     return dict(row) if row else None
 
 
-def recover_stale_autopilot(max_age_sec: int = 480) -> int:
+def last_autopilot_run() -> dict[str, Any] | None:
+    with connect() as conn:
+        row = conn.execute("SELECT * FROM autopilot ORDER BY created_at DESC LIMIT 1").fetchone()
+    return dict(row) if row else None
+
+
+def recover_stale_autopilot(max_age_sec: int = 1800) -> int:
     now = datetime.now(timezone.utc)
     cleared = 0
     with _LOCK, connect() as conn:

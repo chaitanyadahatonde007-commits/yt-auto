@@ -73,7 +73,9 @@ def _stamp_caption(image_path: Path, dest: Path, caption: str, is_short: bool) -
 async def _run_ffmpeg(args: list[str]) -> None:
     proc = await asyncio.create_subprocess_exec(
         ffmpeg_exe(),
+        "-nostdin",
         *args,
+        stdin=asyncio.subprocess.DEVNULL,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
     )

@@ -110,8 +110,10 @@ async def ffprobe_duration(path: Path) -> float:
             pass
     proc = await asyncio.create_subprocess_exec(
         ffmpeg_exe(),
+        "-nostdin",
         "-i",
         str(path),
+        stdin=asyncio.subprocess.DEVNULL,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
     )
@@ -132,6 +134,7 @@ async def _to_wav(src: Path, dest: Path) -> None:
         return
     proc = await asyncio.create_subprocess_exec(
         ffmpeg_exe(),
+        "-nostdin",
         "-y",
         "-i",
         str(src),
@@ -140,6 +143,7 @@ async def _to_wav(src: Path, dest: Path) -> None:
         "-ar",
         "44100",
         str(dest),
+        stdin=asyncio.subprocess.DEVNULL,
         stdout=asyncio.subprocess.DEVNULL,
         stderr=asyncio.subprocess.PIPE,
     )
@@ -259,6 +263,33 @@ async def _edge(text: str, voice: str, dest: Path) -> list[dict[str, Any]]:
     return words
 
 
+async def _groq_tts(text: str, voice: str, dest: Path) -> None:
+    from app.config import load_settings
+
+    key = (load_settings().get("groq_api_key") or "").strip()
+    if not key:
+        raise RuntimeError("Groq key missing")
+    import httpx
+
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    async with httpx.AsyncClient(timeout=90.0) as client:
+        res = await client.post(
+            "https://api.groq.com/openai/v1/audio/speech",
+            headers={"Authorization": f"Bearer {key}"},
+            json={
+                "model": "playai-tts",
+                "voice": voice,
+                "input": text,
+                "response_format": "wav",
+            },
+        )
+    if res.status_code >= 400:
+        raise RuntimeError(res.text[:300])
+    dest.write_bytes(res.content)
+    if dest.stat().st_size < 500:
+        raise RuntimeError("Groq TTS empty")
+
+
 async def _openai(text: str, voice: str, dest: Path) -> None:
     from app.config import load_settings
 
@@ -326,6 +357,7 @@ async def _espeak(text: str, spec: dict[str, Any], dest: Path) -> None:
     listing.write_text("".join(f"file '{p.resolve().as_posix()}'\n" for p in parts), encoding="utf-8")
     proc = await asyncio.create_subprocess_exec(
         ffmpeg_exe(),
+        "-nostdin",
         "-y",
         "-f",
         "concat",
@@ -336,6 +368,7 @@ async def _espeak(text: str, spec: dict[str, Any], dest: Path) -> None:
         "-c",
         "copy",
         str(dest),
+        stdin=asyncio.subprocess.DEVNULL,
         stdout=asyncio.subprocess.DEVNULL,
         stderr=asyncio.subprocess.PIPE,
     )

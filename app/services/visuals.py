@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import math
 import random
@@ -252,9 +253,16 @@ async def render_visuals(
         photo = None
         source = "plate"
         raw = folder / f"{sid}_raw.jpg"
-        still_budget = 4 if fmt == "short" else 8
+        still_budget = 3 if fmt == "short" else 8
         if i < still_budget:
-            ok = await generate_still(prompt, raw, aspect=aspect)
+            # Shorts stay on stock/plates so Autopilot cannot hang on WaveSpeed/Gemini.
+            want_ai = fmt != "short"
+            ok = False
+            if want_ai:
+                try:
+                    ok = await asyncio.wait_for(generate_still(prompt, raw, aspect=aspect), timeout=28)
+                except Exception:
+                    ok = False
             if ok and raw.exists():
                 photo = Image.open(raw)
                 source = "ai"
@@ -276,16 +284,33 @@ async def render_visuals(
 
         clip_rel = None
         clip_kind = None
-        if i < (6 if fmt == "short" else 8):
+        if i < (4 if fmt == "short" else 8):
             candidates: list[tuple[str, Path]] = []
             pex = motion_dir / f"{sid}_pexels.mp4"
             pix = motion_dir / f"{sid}_pixabay.mp4"
-            if await pexels_video(prompt, pex, aspect=aspect, hint=hint, used=used_pexels, index=i):
+            got_pex = False
+            try:
+                got_pex = await asyncio.wait_for(
+                    pexels_video(prompt, pex, aspect=aspect, hint=hint, used=used_pexels, index=i),
+                    timeout=18,
+                )
+            except Exception:
+                got_pex = False
+            if got_pex:
                 candidates.append(("pexels", pex))
                 pexels_clips += 1
-            elif await pixabay_video(prompt, pix, aspect=aspect, hint=hint, used=used_pixabay, index=i):
-                candidates.append(("pixabay", pix))
-                pixabay_clips += 1
+            else:
+                got_pix = False
+                try:
+                    got_pix = await asyncio.wait_for(
+                        pixabay_video(prompt, pix, aspect=aspect, hint=hint, used=used_pixabay, index=i),
+                        timeout=18,
+                    )
+                except Exception:
+                    got_pix = False
+                if got_pix:
+                    candidates.append(("pixabay", pix))
+                    pixabay_clips += 1
             # Skip slow WaveSpeed video on Shorts so Autopilot can finish and stay up 24/7.
             want_ai = fmt != "short" and not candidates and not video_blocked()
             if want_ai:

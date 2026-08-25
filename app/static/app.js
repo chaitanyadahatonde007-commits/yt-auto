@@ -483,7 +483,8 @@ async function renderAutopilot() {
         <button class="btn" type="submit">Save schedule</button>
         <p class="notice" style="margin-top:14px">Aaj ${esc(pack.today)} / ${esc(pack.daily_cap)} videos. Peak slots 9:00 · 13:00 · 18:30 · 21:00 IST. Next ${esc(String(pack.next_slot || "").replace("T", " ").slice(0, 16))}. YouTube ${pack.youtube ? "connected — publish automatic" : "not connected — pehle Channel mein Connect karo"}.</p>
         <p class="notice">${esc(pack.why_idle || "")}</p>
-        <p class="toast ${pack._err ? "err" : ""}" id="msg">${pack._err ? esc(pack._err) : (pack.busy ? "A video is being made now…" : "")}</p>
+        <p class="notice">${pack.job && pack.busy ? esc(`${pack.job.step || "working"} · ${pack.job.message || ""} · ${Math.round((pack.job.progress || 0) * 100)}%`) : ""}</p>
+        <p class="toast ${pack._err ? "err" : ""}" id="msg">${pack._err ? esc(pack._err) : (pack.busy ? "A video is being made now. Leave CMD open." : "")}</p>
       </form>
       <aside class="panel">
         <div class="lbl">Famous right now</div>
@@ -540,13 +541,19 @@ async function renderAutopilot() {
     }
   };
   try {
-    const t = await api("/api/trends");
+    const t = await api("/api/trends", { timeout: 4000 });
     const items = t.trends || [];
     $("#trend-list").innerHTML = items.slice(0, 10).map((item) =>
       `<li><strong>${esc(item.title)}</strong> <span class="meta">${esc(item.source || "")}</span></li>`
     ).join("") || "<li class='empty'>No feed yet. Check the network.</li>";
   } catch {
     $("#trend-list").innerHTML = "<li class='empty'>Could not load trends. You can still click Make one now.</li>";
+  }
+  if (window._apTimer) clearTimeout(window._apTimer);
+  if (pack.busy || (pack.runs || []).some((r) => r.status === "running" || r.status === "queued")) {
+    window._apTimer = setTimeout(() => {
+      if (route().name === "autopilot") renderAutopilot();
+    }, 2500);
   }
 }
 

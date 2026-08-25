@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from typing import Any, Callable
 
 from app.paths import project_dir
@@ -24,7 +25,19 @@ def _progress(job_id: str | None) -> Progress:
 
 
 async def step_research(project: dict[str, Any]) -> dict[str, Any]:
-    research = await gather_research(project.get("topic") or "", project.get("notes") or "")
+    topic = project.get("topic") or ""
+    notes = project.get("notes") or ""
+    try:
+        research = await asyncio.wait_for(gather_research(topic, notes), timeout=6.0)
+    except Exception:
+        research = {
+            "source": "studio",
+            "title": topic,
+            "url": None,
+            "summary": f"A ChannelForge original briefing on {topic}.",
+            "facts": [ln.strip() for ln in notes.splitlines() if len(ln.strip()) > 12][:8],
+            "image": None,
+        }
     project["research"] = research
     project["status"] = "researched"
     return save_project(project)

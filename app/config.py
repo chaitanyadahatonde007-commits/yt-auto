@@ -32,7 +32,8 @@ DEFAULTS: dict[str, Any] = {
     "public_base_url": "",
     "youtube_category_id": "24",
     "made_for_kids": False,
-    "autopilot_enabled": False,
+    "autopilot_enabled": True,
+    "autopilot_seen": False,
     "autopilot_interval_hours": 2,
     "autopilot_daily_cap": 4,
     "autopilot_format": "short",
@@ -54,12 +55,20 @@ def load_settings() -> dict[str, Any]:
         return deepcopy(DEFAULTS)
     merged = deepcopy(DEFAULTS)
     merged.update({k: v for k, v in data.items() if k in DEFAULTS})
+    dirty = False
     if not data.get("entertainment_mode"):
         merged["default_style"] = "entertainment"
         merged["autopilot_style"] = "entertainment"
         merged["default_mood"] = merged.get("default_mood") or "magenta"
         merged["youtube_category_id"] = "24"
         merged["entertainment_mode"] = True
+        dirty = True
+    # First boot of the daily channel: start Autopilot so 4 videos/day happen without a click.
+    if merged.get("daily_channel_mode") and "autopilot_seen" not in data:
+        merged["autopilot_enabled"] = True
+        merged["autopilot_seen"] = True
+        dirty = True
+    if dirty:
         try:
             SETTINGS_PATH.write_text(json.dumps(merged, indent=2), encoding="utf-8")
         except Exception:

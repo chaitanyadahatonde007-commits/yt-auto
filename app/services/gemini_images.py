@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import base64
 import io
 from pathlib import Path
@@ -43,8 +44,11 @@ async def generate_still(prompt: str, dest: Path, aspect: str = "16:9") -> bool:
     dest.parent.mkdir(parents=True, exist_ok=True)
     from app.services.wavespeed import generate_still as wavespeed_still, last_error as wavespeed_error
 
-    if await wavespeed_still(prompt, dest, aspect=aspect):
-        return True
+    try:
+        if await asyncio.wait_for(wavespeed_still(prompt, dest, aspect=aspect), timeout=25):
+            return True
+    except Exception:
+        pass
     ws_err = wavespeed_error()
 
     settings = load_settings()
